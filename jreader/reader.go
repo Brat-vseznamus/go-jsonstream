@@ -20,7 +20,7 @@ import "strconv"
 // did not match the caller's data type expectations), the Reader permanently enters a failed
 // state and remembers that error; all subsequent method calls will return the same error and no
 // more parsing will happen. This means that the caller does not necessarily have to check the
-// error return value of any individual method, although it can.
+// error return Value of any individual method, although it can.
 type Reader struct {
 	tr                tokenReader
 	awaitingReadValue bool // used by ArrayState & ObjectState
@@ -158,7 +158,7 @@ func (r *Reader) Int() int {
 		r.err = err
 		return 0
 	}
-	result, _ := strconv.ParseInt(string(val.value), 10, 64)
+	result, _ := strconv.ParseInt(string(val.Value), 10, 64)
 	return int(result)
 }
 
@@ -182,7 +182,7 @@ func (r *Reader) IntOrNull() (int, bool) {
 		r.err = typeErrorForNullableValue(err)
 		return 0, false
 	}
-	result, err := strconv.ParseInt(string(val.value), 10, 64)
+	result, err := strconv.ParseInt(string(val.Value), 10, 64)
 	return int(result), err == nil
 }
 
@@ -201,7 +201,7 @@ func (r *Reader) Float64() float64 {
 		r.err = err
 		return 0
 	}
-	result, _ := strconv.ParseFloat(string(val.value), 64)
+	result, _ := strconv.ParseFloat(string(val.Value), 64)
 	return result
 }
 
@@ -225,7 +225,7 @@ func (r *Reader) Float64OrNull() (float64, bool) {
 		r.err = typeErrorForNullableValue(err)
 		return 0, false
 	}
-	result, err := strconv.ParseFloat(string(val.value), 64)
+	result, err := strconv.ParseFloat(string(val.Value), 64)
 	return result, err == nil
 }
 

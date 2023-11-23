@@ -284,8 +284,8 @@ func assertReadAnyValue(ctx *readerTestContext, r *Reader, value commontest.AnyV
 
 	case commontest.NumberValue:
 		return commontest.AssertNoErrors(commontest.AssertEqual(NumberValue, av.Kind),
-			commontest.AssertEqual(value.Number.Value, av.Number.value),
-			commontest.AssertEqual(int(value.Number.Kind), int(av.Number.kind)))
+			commontest.AssertEqual(value.Number.Value, av.Number.Value),
+			commontest.AssertEqual(int(value.Number.Kind), int(av.Number.Kind)))
 
 	case commontest.StringValue:
 		return commontest.AssertNoErrors(commontest.AssertEqual(StringValue, av.Kind),

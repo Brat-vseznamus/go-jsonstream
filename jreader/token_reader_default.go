@@ -31,8 +31,8 @@ const (
 )
 
 type Number struct {
-	value []byte
-	kind  NumberKind
+	Value []byte
+	Kind  NumberKind
 }
 
 type token struct {
@@ -117,7 +117,7 @@ func (r *tokenReader) getPos() int {
 
 // Null returns (true, nil) if the next token is a null (consuming the token); (false, nil) if the next
 // token is not a null (not consuming the token); or (false, error) if the next token is not a valid
-// JSON value.
+// JSON Value.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) Null() (bool, error) {
@@ -135,7 +135,7 @@ func (r *tokenReader) Null() (bool, error) {
 	return false, nil
 }
 
-// Bool requires that the next token is a JSON boolean, returning its value if successful (consuming
+// Bool requires that the next token is a JSON boolean, returning its Value if successful (consuming
 // the token), or an error if the next token is anything other than a JSON boolean.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
@@ -144,7 +144,7 @@ func (r *tokenReader) Bool() (bool, error) {
 	return t.boolValue, err
 }
 
-// Bool requires that the next token is a JSON number, returning its value if successful (consuming
+// Bool requires that the next token is a JSON number, returning its Value if successful (consuming
 // the token), or an error if the next token is anything other than a JSON number.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
@@ -153,7 +153,7 @@ func (r *tokenReader) Number() (Number, error) {
 	return t.numberValue, err
 }
 
-// String requires that the next token is a JSON string, returning its value if successful (consuming
+// String requires that the next token is a JSON string, returning its Value if successful (consuming
 // the token), or an error if the next token is anything other than a JSON string.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
@@ -252,8 +252,8 @@ func badArrayOrObjectItemMessage(isObject bool) string {
 	return errMsgBadArrayItem
 }
 
-// Any checks whether the next token is either a valid JSON scalar value or the opening delimiter of
-// an array or object value. If so, it returns (AnyValue, nil) and consumes the token; if not, it
+// Any checks whether the next token is either a valid JSON scalar Value or the opening delimiter of
+// an array or object Value. If so, it returns (AnyValue, nil) and consumes the token; if not, it
 // returns an error. Unlike Reader.Any(), for array and object values it does not create an
 // ArrayState or ObjectState.
 func (r *tokenReader) Any() (AnyValue, error) {
@@ -283,7 +283,7 @@ func (r *tokenReader) Any() (AnyValue, error) {
 }
 
 // Attempts to parse and consume the next token, ignoring whitespace. A token is either a valid JSON scalar
-// value or an ASCII delimiter character. If a token was previously unread using putBack, it consumes that
+// Value or an ASCII delimiter character. If a token was previously unread using putBack, it consumes that
 // instead.
 func (r *tokenReader) next() (token, error) {
 	if r.hasUnread {
@@ -446,9 +446,9 @@ func (r *tokenReader) readNumber(first byte) (Number, bool) { //nolint:unparam
 		// Unfortunately, strconv.ParseFloat requires a string - there is no []byte equivalent. This means we can't
 		// avoid a heap allocation here. Easyjson works around this by creating an unsafe string that points directly
 		// at the existing bytes, but in our default implementation we can't use unsafe.
-		return Number{value: chars, kind: NumberFloat}, true
+		return Number{Value: chars, Kind: NumberFloat}, true
 	} else { //nolint:revive
-		return Number{value: chars, kind: NumberInt}, true
+		return Number{Value: chars, Kind: NumberInt}, true
 	}
 }
 
