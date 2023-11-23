@@ -23,10 +23,22 @@ var (
 	tokenFalse = []byte("false") //nolint:gochecknoglobals
 )
 
+type NumberKind int
+
+const (
+	NumberInt = iota
+	NumberFloat
+)
+
+type Number struct {
+	value []byte
+	kind  NumberKind
+}
+
 type token struct {
 	kind        tokenKind
 	boolValue   bool
-	numberValue float64
+	numberValue Number
 	stringValue []byte
 	delimiter   byte
 }
@@ -136,7 +148,7 @@ func (r *tokenReader) Bool() (bool, error) {
 // the token), or an error if the next token is anything other than a JSON number.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
-func (r *tokenReader) Number() (float64, error) {
+func (r *tokenReader) Number() (Number, error) {
 	t, err := r.consumeScalar(numberToken)
 	return t.numberValue, err
 }
@@ -379,7 +391,7 @@ func (r *tokenReader) consumeASCIILowercaseAlphabeticChars() int {
 	return n
 }
 
-func (r *tokenReader) readNumber(first byte) (float64, bool) { //nolint:unparam
+func (r *tokenReader) readNumber(first byte) (Number, bool) { //nolint:unparam
 	startPos := r.lastPos
 	isFloat := false
 	var ch byte
@@ -401,13 +413,13 @@ func (r *tokenReader) readNumber(first byte) (float64, bool) { //nolint:unparam
 		// exponent must match this regex: [eE][-+]?[0-9]+
 		ch, ok = r.readByte()
 		if !ok {
-			return 0, false
+			return Number{}, false
 		}
 		if ch == '+' || ch == '-' { //nolint:gocritic
 		} else if ch >= '0' && ch <= '9' {
 			r.unreadByte()
 		} else {
-			return 0, false
+			return Number{}, false
 		}
 		for {
 			ch, ok = r.readByte()
@@ -421,7 +433,7 @@ func (r *tokenReader) readNumber(first byte) (float64, bool) { //nolint:unparam
 			hasExponent = true
 		}
 		if !hasExponent {
-			return 0, false
+			return Number{}, false
 		}
 		isFloat = true
 	} else { //nolint:gocritic
@@ -434,11 +446,9 @@ func (r *tokenReader) readNumber(first byte) (float64, bool) { //nolint:unparam
 		// Unfortunately, strconv.ParseFloat requires a string - there is no []byte equivalent. This means we can't
 		// avoid a heap allocation here. Easyjson works around this by creating an unsafe string that points directly
 		// at the existing bytes, but in our default implementation we can't use unsafe.
-		n, err := strconv.ParseFloat(string(chars), 64)
-		return n, err == nil
+		return Number{value: chars, kind: NumberFloat}, true
 	} else { //nolint:revive
-		n, ok := parseIntFromBytes(chars)
-		return float64(n), ok
+		return Number{value: chars, kind: NumberInt}, true
 	}
 }
 

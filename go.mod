@@ -1,15 +1,16 @@
 module github.com/launchdarkly/go-jsonstream/v3
 
-go 1.18
+go 1.20
 
 require (
-	github.com/mailru/easyjson v0.7.6
-	github.com/stretchr/testify v1.6.1
+	github.com/mailru/easyjson v0.7.7
+	github.com/stretchr/testify v1.8.4
 )
 
 require (
-	github.com/davecgh/go-spew v1.1.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0 // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -63,10 +63,27 @@ const (
 	ObjectValue ValueKind = iota
 )
 
+type NumberKind int
+
+const (
+	NumberInt = iota
+	NumberFloat
+)
+
+type ActualNumber struct {
+	IntValue   int
+	FloatValue float64
+}
+
+type Number struct {
+	Value []byte
+	Kind  NumberKind
+}
+
 type AnyValue struct {
 	Kind   ValueKind
 	Bool   bool
-	Number float64
+	Number Number
 	String string
 	Array  []Action
 	Object []PropertyAction

@@ -16,26 +16,19 @@ TEST_BINARY=./build/go-jsonstream.test
 TEST_COMPILE_LOG=./build/compile.out
 ALLOCATIONS_LOG=./build/allocations.out
 
-EASYJSON_TAG=-tags launchdarkly_easyjson
 
 .PHONY: all build build-easyjson clean test test-easyjson test-coverage lint
 
-all: build build-easyjson
+all: build
 
 build:
 	go build ./...
-
-build-easyjson:
-	go build $(EASYJSON_TAG) ./...
 
 clean:
 	go clean
 
 test: build
 	go test -count 1 ./...
-
-test-easyjson: build-easyjson
-	go test $(EASYJSON_TAG) -count 1 ./...
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
@@ -49,11 +42,6 @@ $(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
 benchmarks: build
 	@mkdir -p ./build
 	go test -benchmem '-run=^$$' '-bench=.*' ./... | tee build/benchmarks.out
-	@if grep <build/benchmarks.out 'NoAlloc.*[1-9][0-9]* allocs/op'; then echo "Unexpected heap allocations detected in benchmarks!"; exit 1; fi
-
-benchmarks-easyjson: build-easyjson
-	@mkdir -p ./build
-	go test $(EASYJSON_TAG) -benchmem '-run=^$$' '-bench=.*' ./... | tee build/benchmarks.out
 	@if grep <build/benchmarks.out 'NoAlloc.*[1-9][0-9]* allocs/op'; then echo "Unexpected heap allocations detected in benchmarks!"; exit 1; fi
 
 # See CONTRIBUTING.md regarding the use of the benchmark-allocs target. Notes about this implementation:

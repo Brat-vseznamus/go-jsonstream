@@ -3,6 +3,7 @@ package jreader
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/launchdarkly/go-jsonstream/v3/internal/commontest"
@@ -80,7 +81,7 @@ func (f readerValueTestFactory) Variants(value commontest.AnyValue) []commontest
 	case commontest.NullValue:
 		return variantsForNullValues
 	case commontest.NumberValue:
-		if float64(int(value.Number)) == value.Number {
+		if value.Number.Kind == NumberInt {
 			return variantsForInts
 		}
 		return variantsForFloats
@@ -122,22 +123,26 @@ func (f readerValueTestFactory) Value(value commontest.AnyValue, variant commont
 			switch variant {
 			case nullableNumberAsInt:
 				gotVal, nonNull := r.IntOrNull()
+				result, _ := strconv.ParseInt(string(value.Number.Value), 10, 64)
 				return commontest.AssertNoErrors(r.Error(),
 					commontest.AssertTrue(nonNull, shouldNotHaveBeenNullError.Error()),
-					commontest.AssertEqual(int(value.Number), gotVal))
+					commontest.AssertEqual(int(result), gotVal))
 			case numberAsInt:
 				gotVal := r.Int()
+				result, _ := strconv.ParseInt(string(value.Number.Value), 10, 64)
 				return commontest.AssertNoErrors(r.Error(),
-					commontest.AssertEqual(int(value.Number), gotVal))
+					commontest.AssertEqual(int(result), gotVal))
 			case nullableValue:
 				gotVal, nonNull := r.Float64OrNull()
+				result, _ := strconv.ParseFloat(string(value.Number.Value), 64)
 				return commontest.AssertNoErrors(r.Error(),
 					commontest.AssertTrue(nonNull, shouldNotHaveBeenNullError.Error()),
-					commontest.AssertEqual(value.Number, gotVal))
+					commontest.AssertEqual(result, gotVal))
 			default:
 				gotVal := r.Float64()
+				result, _ := strconv.ParseFloat(string(value.Number.Value), 64)
 				return commontest.AssertNoErrors(r.Error(),
-					commontest.AssertEqual(value.Number, gotVal))
+					commontest.AssertEqual(result, gotVal))
 			}
 
 		case commontest.StringValue:
@@ -279,7 +284,8 @@ func assertReadAnyValue(ctx *readerTestContext, r *Reader, value commontest.AnyV
 
 	case commontest.NumberValue:
 		return commontest.AssertNoErrors(commontest.AssertEqual(NumberValue, av.Kind),
-			commontest.AssertEqual(value.Number, av.Number))
+			commontest.AssertEqual(value.Number.Value, av.Number.value),
+			commontest.AssertEqual(int(value.Number.Kind), int(av.Number.kind)))
 
 	case commontest.StringValue:
 		return commontest.AssertNoErrors(commontest.AssertEqual(StringValue, av.Kind),

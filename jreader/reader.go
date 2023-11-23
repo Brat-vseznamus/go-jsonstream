@@ -1,5 +1,7 @@
 package jreader
 
+import "strconv"
+
 // Reader is a high-level API for reading JSON data sequentially.
 //
 // It is designed to make writing custom unmarshallers for application types as convenient as
@@ -110,13 +112,54 @@ func (r *Reader) BoolOrNull() (value bool, nonNull bool) {
 	return val, true
 }
 
+func (r *Reader) Number() Number {
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return Number{}
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = err
+		return Number{}
+	}
+	return val
+}
+
+func (r *Reader) NumberOrNull() (Number, bool) {
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return Number{}, false
+	}
+	isNull, err := r.tr.Null()
+	if isNull || err != nil {
+		r.err = err
+		return Number{}, false
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = typeErrorForNullableValue(err)
+		return Number{}, false
+	}
+	return val, true
+}
+
 // Int attempts to read a numeric value and returns it as an int.
 //
 // If there is a parsing error, or the next value is not a number, the return value is zero and
 // the Reader enters a failed state, which you can detect with Error(). Non-numeric types are never
 // converted to numbers.
 func (r *Reader) Int() int {
-	return int(r.Float64())
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return 0
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = err
+		return 0
+	}
+	result, _ := strconv.ParseInt(string(val.value), 10, 64)
+	return int(result)
 }
 
 // IntOrNull attempts to read either an integer numeric value or a null. In the case of a number, the
@@ -125,8 +168,22 @@ func (r *Reader) Int() int {
 // If there is a parsing error, or the next value is neither a number nor a null, the return values
 // are (0, false) and the Reader enters a failed state, which you can detect with Error().
 func (r *Reader) IntOrNull() (int, bool) {
-	val, nonNull := r.Float64OrNull()
-	return int(val), nonNull
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return 0, false
+	}
+	isNull, err := r.tr.Null()
+	if isNull || err != nil {
+		r.err = err
+		return 0, false
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = typeErrorForNullableValue(err)
+		return 0, false
+	}
+	result, err := strconv.ParseInt(string(val.value), 10, 64)
+	return int(result), err == nil
 }
 
 // Float64 attempts to read a numeric value and returns it as a float64.
@@ -144,7 +201,8 @@ func (r *Reader) Float64() float64 {
 		r.err = err
 		return 0
 	}
-	return val
+	result, _ := strconv.ParseFloat(string(val.value), 64)
+	return result
 }
 
 // Float64OrNull attempts to read either a numeric value or a null. In the case of a number, the
@@ -167,7 +225,8 @@ func (r *Reader) Float64OrNull() (float64, bool) {
 		r.err = typeErrorForNullableValue(err)
 		return 0, false
 	}
-	return val, true
+	result, err := strconv.ParseFloat(string(val.value), 64)
+	return result, err == nil
 }
 
 // String attempts to read a string value.

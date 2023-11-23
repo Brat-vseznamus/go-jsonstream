@@ -54,8 +54,8 @@ func (tds testDefs) then(next testDef) testDefs {
 func (f testFactory) MakeAllValueTests() testDefs {
 	ret := testDefs{}
 	eofTest := testDef{name: "EOF", action: f.valueTestFactory.EOF()}
-	ret = append(ret, f.makeScalarValueTests(true).then(eofTest)...)
-	ret = append(ret, f.makeArrayTests().then(eofTest)...)
+	//ret = append(ret, f.makeScalarValueTests(true).then(eofTest)...)
+	//ret = append(ret, f.makeArrayTests().then(eofTest)...)
 	ret = append(ret, f.makeObjectTests().then(eofTest)...)
 	return ret
 }

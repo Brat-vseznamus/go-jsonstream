@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// This file is used by test_factory.go to define a standard set of JSON scalar test values.
+// This file is used by test_factory.go to define a standard set of JSON scalar test Values.
 
 type encodingBehavior struct {
 	encodeAsHex func(rune) bool
@@ -13,14 +13,16 @@ type encodingBehavior struct {
 }
 
 type testValue struct {
-	name     string
-	encoding string
-	value    AnyValue
+	name                string
+	encoding            string
+	value               AnyValue
+	expectedNumberValue ActualNumber
 }
 
 type numberTestValueBase struct {
 	name             string
-	val              float64
+	actualNumber     ActualNumber
+	val              Number
 	encoding         string
 	simplestEncoding string
 }
@@ -33,34 +35,34 @@ type stringTestValueBase struct {
 
 func makeBoolTestValues() []testValue {
 	return []testValue{
-		{"bool true", "true", AnyValue{Kind: BoolValue, Bool: true}},
-		{"bool false", "false", AnyValue{Kind: BoolValue, Bool: false}},
+		{"bool true", "true", AnyValue{Kind: BoolValue, Bool: true}, ActualNumber{}},
+		{"bool false", "false", AnyValue{Kind: BoolValue, Bool: false}, ActualNumber{}},
 	}
 }
 
 func makeNumberTestValues(encodingBehavior encodingBehavior) []testValue {
 	var ret []testValue
 	for _, v := range []numberTestValueBase{
-		{"zero", 0, "0", ""},
-		{"int", 3, "3", ""},
-		{"int negative", -3, "-3", ""},
-		{"int large", 1603312301195, "1603312301195", ""}, // enough magnitude for a millisecond timestamp
-		{"float", 3.5, "3.5", ""},
-		{"float negative", -3.5, "-3.5", ""},
-		{"float with exp and decimal", 3500, "3.5e3", "3500"},
-		{"float with Exp and decimal", 3500, "3.5E3", "3500"},
-		{"float with exp+ and decimal", 3500, "3.5e+3", "3500"},
-		{"float with exp- and decimal", 0.0035, "3.5e-3", "0.0035"},
-		{"float with exp but no decimal", 5000, "5e3", "5000"},
-		{"float with Exp but no decimal", 5000, "5E3", "5000"},
-		{"float with exp+ but no decimal", 5000, "5e+3", "5000"},
-		{"float with exp- but no decimal", 0.005, "5e-3", "0.005"},
+		{"zero", ActualNumber{IntValue: 0, FloatValue: 0}, Number{Value: []byte("0"), Kind: NumberInt}, "0", ""},
+		{"int", ActualNumber{IntValue: 3, FloatValue: 0}, Number{Value: []byte("3"), Kind: NumberInt}, "3", ""},
+		{"int negative", ActualNumber{IntValue: -3, FloatValue: 0}, Number{Value: []byte("-3"), Kind: NumberInt}, "-3", ""},
+		{"int large", ActualNumber{IntValue: 1603312301195, FloatValue: 0}, Number{Value: []byte("1603312301195"), Kind: NumberInt}, "1603312301195", ""}, // enough magnitude for a millisecond timestamp
+		{"float", ActualNumber{IntValue: 0, FloatValue: 3.5}, Number{Value: []byte("3.5"), Kind: NumberFloat}, "3.5", ""},
+		{"float negative", ActualNumber{IntValue: 0, FloatValue: -3.5}, Number{Value: []byte("-3.5"), Kind: NumberFloat}, "-3.5", ""},
+		{"float with exp and decimal", ActualNumber{IntValue: 0, FloatValue: 3500}, Number{Value: []byte("3.5e3"), Kind: NumberFloat}, "3.5e3", "3500"},
+		{"float with Exp and decimal", ActualNumber{IntValue: 0, FloatValue: 3500}, Number{Value: []byte("3.5E3"), Kind: NumberFloat}, "3.5E3", "3500"},
+		{"float with exp+ and decimal", ActualNumber{IntValue: 0, FloatValue: 3500}, Number{Value: []byte("3.5e+3"), Kind: NumberFloat}, "3.5e+3", "3500"},
+		{"float with exp- and decimal", ActualNumber{IntValue: 0, FloatValue: 0.0035}, Number{Value: []byte("3.5e-3"), Kind: NumberFloat}, "3.5e-3", "0.0035"},
+		{"float with exp but no decimal", ActualNumber{IntValue: 0, FloatValue: 5000}, Number{Value: []byte("5e3"), Kind: NumberFloat}, "5e3", "5000"},
+		{"float with Exp but no decimal", ActualNumber{IntValue: 0, FloatValue: 5000}, Number{Value: []byte("5E3"), Kind: NumberFloat}, "5E3", "5000"},
+		{"float with exp+ but no decimal", ActualNumber{IntValue: 0, FloatValue: 5000}, Number{Value: []byte("5e+3"), Kind: NumberFloat}, "5e+3", "5000"},
+		{"float with exp- but no decimal", ActualNumber{IntValue: 0, FloatValue: 0.005}, Number{Value: []byte("5e-3"), Kind: NumberFloat}, "5e-3", "0.005"},
 	} {
 		enc := v.encoding
 		if !encodingBehavior.forParsing && v.simplestEncoding != "" {
 			enc = v.simplestEncoding
 		}
-		ret = append(ret, testValue{"number " + v.name, enc, AnyValue{Kind: NumberValue, Number: v.val}})
+		ret = append(ret, testValue{"number " + v.name, enc, AnyValue{Kind: NumberValue, Number: v.val}, v.actualNumber})
 	}
 	return ret
 }

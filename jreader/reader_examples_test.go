@@ -205,7 +205,7 @@ func ExampleReader_Any() {
 		case BoolValue:
 			fmt.Println("a bool:", value.Bool)
 		case NumberValue:
-			fmt.Println("a number:", value.Number)
+			fmt.Println("a number:", string(value.Number.value))
 		case StringValue:
 			fmt.Println("a string:", value.String)
 		case ArrayValue:
