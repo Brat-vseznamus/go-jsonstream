@@ -1,4 +1,4 @@
-module github.com/launchdarkly/go-jsonstream/v3
+module github.com/Brat-vseznamus/go-jsonstream/v3
 
 go 1.20
 

@@ -30,11 +30,6 @@ clean:
 test: build
 	go test -count 1 ./...
 
-test-coverage: $(COVERAGE_PROFILE_RAW)
-	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
-	go tool cover -html $(COVERAGE_PROFILE_FILTERED) -o $(COVERAGE_PROFILE_FILTERED_HTML)
-	go tool cover -html $(COVERAGE_PROFILE_RAW) -o $(COVERAGE_PROFILE_RAW_HTML)
-
 $(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
 	@mkdir -p ./build
 	go test -coverprofile $(COVERAGE_PROFILE_RAW) ./... >/dev/null
