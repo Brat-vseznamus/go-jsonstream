@@ -6,7 +6,15 @@ package jreader
 // heap allocation since, in typical usage, the Reader will not escape the scope in which it was
 // declared and can remain on the stack.
 func NewReader(data []byte) Reader {
+	buffer := make([]JsonTreeStruct, 0)
+	charBuffer := make([]byte, 0)
 	return Reader{
-		tr: newTokenReader(data),
+		tr: newTokenReader(data, &buffer, &charBuffer),
+	}
+}
+
+func NewReaderWithBuffers(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) Reader {
+	return Reader{
+		tr: newTokenReader(data, buffer, charBuffer),
 	}
 }

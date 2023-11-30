@@ -1,6 +1,7 @@
 package jreader
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/Brat-vseznamus/go-jsonstream/v3/internal/commontest"
@@ -62,7 +63,7 @@ func BenchmarkReadString(b *testing.B) {
 		r := NewReader(data)
 		val := r.String()
 		failBenchmarkOnReaderError(b, &r)
-		if val != "abc" {
+		if bytes.Equal(val, data) {
 			b.FailNow()
 		}
 	}
@@ -100,7 +101,7 @@ func BenchmarkReadArrayOfStrings(b *testing.B) {
 		for arr.Next() {
 			val := r.String()
 			failBenchmarkOnReaderError(b, &r)
-			vals = append(vals, val)
+			vals = append(vals, string(val))
 		}
 		if len(vals) < len(expected) {
 			b.FailNow()

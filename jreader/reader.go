@@ -1,6 +1,9 @@
 package jreader
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 // Reader is a high-level API for reading JSON data sequentially.
 //
@@ -33,7 +36,7 @@ func (r *Reader) Error() error {
 	return r.err
 }
 
-// RequireEOF returns nil if all of the input has been consumed (not counting whitespace), or an
+// RequireEOF returns nil if all the input has been consumed (not counting whitespace), or an
 // error if not.
 func (r *Reader) RequireEOF() error {
 	if !r.tr.EOF() {
@@ -234,15 +237,15 @@ func (r *Reader) Float64OrNull() (float64, bool) {
 // If there is a parsing error, or the next value is not a string, the return value is "" and
 // the Reader enters a failed state, which you can detect with Error(). Types other than string
 // are never converted to strings.
-func (r *Reader) String() string {
+func (r *Reader) String() []byte {
 	r.awaitingReadValue = false
 	if r.err != nil {
-		return ""
+		return []byte("")
 	}
 	val, err := r.tr.String()
 	if err != nil {
 		r.err = err
-		return ""
+		return []byte("")
 	}
 	return val
 }
@@ -252,20 +255,20 @@ func (r *Reader) String() string {
 //
 // If there is a parsing error, or the next value is neither a string nor a null, the return values
 // are ("", false) and the Reader enters a failed state, which you can detect with Error().
-func (r *Reader) StringOrNull() (string, bool) {
+func (r *Reader) StringOrNull() ([]byte, bool) {
 	r.awaitingReadValue = false
 	if r.err != nil {
-		return "", false
+		return []byte(""), false
 	}
 	isNull, err := r.tr.Null()
 	if isNull || err != nil {
 		r.err = err
-		return "", false
+		return []byte(""), false
 	}
 	val, err := r.tr.String()
 	if err != nil {
 		r.err = typeErrorForNullableValue(err)
-		return "", false
+		return []byte(""), false
 	}
 	return val, true
 }
@@ -435,6 +438,86 @@ func (r *Reader) SkipValue() error {
 		}
 	}
 	return r.err
+}
+
+type JsonStructPointer struct {
+	Pos    int
+	Values *[]JsonTreeStruct
+}
+
+func (jPointer *JsonStructPointer) Next() bool {
+	if jPointer.Pos+1 >= len(*jPointer.Values) {
+		return false
+	}
+	jPointer.Pos++
+	return true
+}
+
+func (jPointer *JsonStructPointer) SkipSubTree() bool {
+	if jPointer.Pos >= len(*jPointer.Values) {
+		return false
+	}
+	jPointer.Pos += (*jPointer.Values)[jPointer.Pos].SubTreeSize
+	return true
+}
+
+func (jPointer *JsonStructPointer) CurrentStruct() (JsonTreeStruct, error) {
+	if jPointer.Pos >= len(*jPointer.Values) {
+		return JsonTreeStruct{}, fmt.Errorf("no elements in structure")
+	}
+	return (*jPointer.Values)[jPointer.Pos], nil
+}
+
+func (jPointer *JsonStructPointer) ReturnBackOn(shift int) bool {
+	jPointer.Pos -= shift
+	if jPointer.Pos < 0 || jPointer.Pos >= len(*jPointer.Values) {
+		jPointer.Pos += shift
+		return false
+	}
+	return true
+}
+
+type JsonTreeStruct struct {
+	Start       int
+	End         int
+	SubTreeSize int
+	AssocValue  []byte // for key:value it is key, else nil
+}
+
+func (r *Reader) Destruct() {
+	r.tr.options.lazyParse = true
+	cr := *r
+	*r.tr.structTreePointer.Values = (*r.tr.structTreePointer.Values)[:0]
+	r.tr.structTreePointer.Pos = 0
+	cr.destruct()
+	r.tr.options.lazyRead = true
+	r.tr.options.lazyParse = false
+}
+
+func (r *Reader) destruct() {
+	value := r.Any()
+	tree := r.tr.structTreePointer.Values
+
+	pos := len(*tree)
+	*tree = append(*tree, JsonTreeStruct{Start: r.tr.lastPos, SubTreeSize: 1})
+
+	switch value.Kind {
+	case ObjectValue:
+		for kv := value.Object; kv.Next(); {
+			nextPos := len(*tree)
+			key := kv.Name()
+			r.destruct()
+			(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
+			(*tree)[nextPos].AssocValue = key
+		}
+	case ArrayValue:
+		for v := value.Array; v.Next(); {
+			nextPos := len(*tree)
+			r.destruct()
+			(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
+		}
+	}
+	(*tree)[pos].End = r.tr.pos
 }
 
 func typeErrorForNullableValue(err error) error {

@@ -13,7 +13,7 @@ func (s *ExampleStructWrapper) ReadFromJSONReader(r *Reader) {
 	for obj := r.Object(); obj.Next(); {
 		switch string(obj.Name()) {
 		case commontest.ExampleStructStringFieldName:
-			s.StringField = r.String()
+			s.StringField = string(r.String())
 		case commontest.ExampleStructIntFieldName:
 			s.IntField = r.Int()
 		case commontest.ExampleStructOptBoolAsInterfaceFieldName:
@@ -31,7 +31,7 @@ func (s *ExampleStructWrapperWithRequiredProps) ReadFromJSONReader(r *Reader) {
 	for obj := r.Object().WithRequiredProperties(commontest.ExampleStructRequiredFieldNames); obj.Next(); {
 		switch string(obj.Name()) {
 		case commontest.ExampleStructStringFieldName:
-			s.StringField = r.String()
+			s.StringField = string(r.String())
 		case commontest.ExampleStructIntFieldName:
 			s.IntField = r.Int()
 		case commontest.ExampleStructOptBoolAsInterfaceFieldName:

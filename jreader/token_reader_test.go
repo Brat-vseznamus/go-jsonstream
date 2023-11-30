@@ -27,7 +27,9 @@ type TokenReaderTestSuite struct {
 func TestTokenReader(t *testing.T) {
 	s := TokenReaderTestSuite{
 		Factory: func(input []byte) *tokenReader {
-			tr := newTokenReader(input)
+			buffer := make([]JsonTreeStruct, 0)
+			charBuffer := make([]byte, 0)
+			tr := newTokenReader(input, &buffer, &charBuffer)
 			return &tr
 		},
 	}
@@ -98,7 +100,10 @@ func (f tokenReaderValueTestFactory) Value(value commontest.AnyValue, variant co
 
 		case commontest.StringValue:
 			gotVal, err := tr.String()
-			return commontest.AssertNoErrors(err, commontest.AssertEqual(value.String, gotVal))
+			if gotVal == nil {
+				gotVal = []byte("")
+			}
+			return commontest.AssertNoErrors(err, commontest.AssertEqual([]byte(value.String), gotVal))
 
 		case commontest.ArrayValue:
 			gotDelim, err := tr.Delimiter('[')

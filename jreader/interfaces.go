@@ -12,7 +12,7 @@ type AnyValue struct {
 	Number Number
 
 	// String is the value if the JSON value is a string, or an empty string otherwise.
-	String string
+	String []byte
 
 	// Array is an ArrayState that can be used to iterate through the array elements if the JSON
 	// value is an array, or an uninitialized ArrayState{} otherwise.

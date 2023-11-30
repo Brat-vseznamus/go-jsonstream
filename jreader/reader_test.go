@@ -151,9 +151,9 @@ func (f readerValueTestFactory) Value(value commontest.AnyValue, variant commont
 				gotVal, nonNull := r.StringOrNull()
 				return commontest.AssertNoErrors(r.Error(),
 					commontest.AssertTrue(nonNull, shouldNotHaveBeenNullError.Error()),
-					commontest.AssertEqual(value.String, gotVal))
+					commontest.AssertEqual(value.String, string(gotVal)))
 			default:
-				gotVal := r.String()
+				gotVal := string(r.String())
 				return commontest.AssertNoErrors(r.Error(),
 					commontest.AssertEqual(value.String, gotVal))
 			}
@@ -209,7 +209,7 @@ func assertReadNull(r *Reader, variant commontest.ValueVariant) error {
 		expectVal = float64(0)
 	case nullableStringIsNull:
 		gotVal, nonNull = r.StringOrNull()
-		expectVal = ""
+		expectVal = []byte("")
 	case nullableArrayIsNull:
 		arr := r.ArrayOrNull()
 		if r.Error() != nil {
@@ -289,7 +289,7 @@ func assertReadAnyValue(ctx *readerTestContext, r *Reader, value commontest.AnyV
 
 	case commontest.StringValue:
 		return commontest.AssertNoErrors(commontest.AssertEqual(StringValue, av.Kind),
-			commontest.AssertEqual(value.String, av.String))
+			commontest.AssertEqual(value.String, string(av.String)))
 
 	case commontest.ArrayValue:
 		if err := commontest.AssertEqual(ArrayValue, av.Kind); err != nil {
@@ -383,14 +383,14 @@ func TestReaderSkipValue(t *testing.T) {
 		require.NoError(t, r.Error())
 
 		require.True(t, arr.Next())
-		val1 := r.String()
+		val1 := string(r.String())
 		require.NoError(t, r.Error())
 		require.Equal(t, "a", val1)
 
 		require.True(t, arr.Next())
 
 		require.True(t, arr.Next())
-		val3 := r.String()
+		val3 := string(r.String())
 		require.NoError(t, r.Error())
 		require.Equal(t, "c", val3)
 

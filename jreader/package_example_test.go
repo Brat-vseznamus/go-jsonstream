@@ -10,7 +10,7 @@ func Example() {
 	if err := r.Error(); err != nil {
 		fmt.Println("error:", err.Error())
 	} else {
-		fmt.Println(s)
+		fmt.Println(string(s))
 	}
 
 	// Output: a "good" string

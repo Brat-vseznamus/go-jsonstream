@@ -8,7 +8,7 @@ func ExampleNewReader() {
 	if err := r.Error(); err != nil {
 		fmt.Println("error:", err.Error())
 	} else {
-		fmt.Println(s)
+		fmt.Println(string(s))
 	}
 	// Output: a "good" string
 }
@@ -118,7 +118,7 @@ func ExampleReader_Float64OrNull() {
 
 func ExampleReader_String() {
 	r := NewReader([]byte(`"a \"good\" string"`))
-	var value string = r.String()
+	var value string = string(r.String())
 	if err := r.Error(); err != nil {
 		fmt.Println("error:", err)
 	} else {
@@ -130,11 +130,11 @@ func ExampleReader_String() {
 func ExampleReader_StringOrNull() {
 	r1 := NewReader([]byte(`null`))
 	if value1, nonNull := r1.StringOrNull(); nonNull {
-		fmt.Println("value1:", "\""+value1+"\"")
+		fmt.Println("value1:", "\""+string(value1)+"\"")
 	}
 	r2 := NewReader([]byte(`""`))
 	if value2, nonNull := r2.StringOrNull(); nonNull {
-		fmt.Println("value2:", "\""+value2+"\"")
+		fmt.Println("value2:", "\""+string(value2)+"\"")
 	}
 	// Output: value2: ""
 }
@@ -234,9 +234,9 @@ func ExampleObjectState_WithRequiredProperties() {
 	for obj := r.Object().WithRequiredProperties(requiredProps); obj.Next(); {
 		switch string(obj.Name()) {
 		case "key":
-			key = r.String()
+			key = string(r.String())
 		case "name":
-			name = r.String()
+			name = string(r.String())
 		}
 	}
 	if err := r.Error(); err != nil {

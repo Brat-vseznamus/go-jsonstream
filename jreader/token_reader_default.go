@@ -72,20 +72,33 @@ func (t token) description() string {
 	return t.valueKind().String()
 }
 
-type tokenReader struct {
-	data        []byte
-	pos         int
-	len         int
-	hasUnread   bool
-	unreadToken token
-	lastPos     int
+type readerOptions struct {
+	lazyParse bool
+	lazyRead  bool
 }
 
-func newTokenReader(data []byte) tokenReader {
+type tokenReader struct {
+	data              []byte
+	pos               int
+	len               int
+	hasUnread         bool
+	unreadToken       token
+	lastPos           int
+	charBuffer        *[]byte
+	structTreePointer JsonStructPointer
+	options           readerOptions
+}
+
+func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) tokenReader {
 	tr := tokenReader{
 		data: data,
 		pos:  0,
 		len:  len(data),
+		structTreePointer: JsonStructPointer{
+			Pos:    0,
+			Values: buffer,
+		},
+		charBuffer: charBuffer,
 	}
 	return tr
 }
@@ -157,9 +170,9 @@ func (r *tokenReader) Number() (Number, error) {
 // the token), or an error if the next token is anything other than a JSON string.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
-func (r *tokenReader) String() (string, error) {
+func (r *tokenReader) String() ([]byte, error) {
 	t, err := r.consumeScalar(stringToken)
-	return string(t.stringValue), err
+	return t.stringValue, err
 }
 
 // PropertyName requires that the next token is a JSON string and the token after that is a colon,
@@ -267,7 +280,7 @@ func (r *tokenReader) Any() (AnyValue, error) {
 	case numberToken:
 		return AnyValue{Kind: NumberValue, Number: t.numberValue}, nil
 	case stringToken:
-		return AnyValue{Kind: StringValue, String: string(t.stringValue)}, nil
+		return AnyValue{Kind: StringValue, String: t.stringValue}, nil
 	case delimiterToken:
 		if t.delimiter == '[' {
 			return AnyValue{Kind: ArrayValue}, nil
@@ -454,7 +467,10 @@ func (r *tokenReader) readNumber(first byte) (Number, bool) { //nolint:unparam
 
 func (r *tokenReader) readString() ([]byte, error) {
 	startPos := r.pos // the opening quote mark has already been read
-	var chars []byte
+
+	chars := r.charBuffer
+	*chars = (*chars)[:0]
+
 	haveEscaped := false
 	var reader bytes.Reader // bytes.Reader understands multi-byte characters
 	reader.Reset(r.data)
@@ -465,56 +481,70 @@ func (r *tokenReader) readString() ([]byte, error) {
 		if err != nil {
 			return nil, r.syntaxErrorOnLastToken(errMsgInvalidString)
 		}
-		if ch == '"' {
-			break
-		}
-		if ch != '\\' {
-			if haveEscaped {
-				chars = appendRune(chars, ch)
-			}
-			continue
-		}
-		if !haveEscaped {
-			pos := (r.len - reader.Len()) - 1 // don't include the backslash we just read
-			chars = make([]byte, pos-startPos, pos-startPos+20)
-			if pos > startPos {
-				copy(chars, r.data[startPos:pos])
-			}
-			haveEscaped = true
-		}
-		ch, _, err = reader.ReadRune()
-		if err != nil {
-			return nil, r.syntaxErrorOnLastToken(errMsgInvalidString)
-		}
-		switch ch {
-		case '"', '\\', '/':
-			chars = appendRune(chars, ch)
-		case 'b':
-			chars = appendRune(chars, '\b')
-		case 'f':
-			chars = appendRune(chars, '\f')
-		case 'n':
-			chars = appendRune(chars, '\n')
-		case 'r':
-			chars = appendRune(chars, '\r')
-		case 't':
-			chars = appendRune(chars, '\t')
-		case 'u':
-			if ch, ok := readHexChar(&reader); ok {
-				chars = appendRune(chars, ch)
+		if r.options.lazyParse {
+			if ch == '\\' {
+				haveEscaped = !haveEscaped
+			} else if ch == '"' && !haveEscaped {
+				break
 			} else {
+				haveEscaped = false
+			}
+		} else {
+			if ch == '"' {
+				break
+			}
+			if ch != '\\' {
+				if haveEscaped {
+					*chars = appendRune(*chars, ch)
+				}
+				continue
+			}
+			if !haveEscaped {
+				pos := (r.len - reader.Len()) - 1 // don't include the backslash we just read
+				if cap(*chars) < pos-startPos+20 {
+					*chars = make([]byte, pos-startPos, pos-startPos+20)
+				} else {
+					*chars = (*chars)[0:(pos - startPos)]
+				}
+				if pos > startPos {
+					copy(*chars, r.data[startPos:pos])
+				}
+				haveEscaped = true
+			}
+			ch, _, err = reader.ReadRune()
+			if err != nil {
 				return nil, r.syntaxErrorOnLastToken(errMsgInvalidString)
 			}
-		default:
-			return nil, r.syntaxErrorOnLastToken(errMsgInvalidString)
+			switch ch {
+			case '"', '\\', '/':
+				*chars = appendRune(*chars, ch)
+			case 'b':
+				*chars = appendRune(*chars, '\b')
+			case 'f':
+				*chars = appendRune(*chars, '\f')
+			case 'n':
+				*chars = appendRune(*chars, '\n')
+			case 'r':
+				*chars = appendRune(*chars, '\r')
+			case 't':
+				*chars = appendRune(*chars, '\t')
+			case 'u':
+				if ch, ok := readHexChar(&reader); ok {
+					*chars = appendRune(*chars, ch)
+				} else {
+					return nil, r.syntaxErrorOnLastToken(errMsgInvalidString)
+				}
+			default:
+				return nil, r.syntaxErrorOnLastToken(errMsgInvalidString)
+			}
 		}
 	}
 	r.pos = r.len - reader.Len()
 	if haveEscaped {
-		if len(chars) == 0 {
+		if len(*chars) == 0 {
 			return nil, nil
 		}
-		return chars, nil
+		return *chars, nil
 	} else { //nolint:revive
 		pos := r.pos - 1
 		if pos <= startPos {
