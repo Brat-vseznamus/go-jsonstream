@@ -451,10 +451,12 @@ func (r *Reader) SkipValue() error {
 		}
 		v := r.Any()
 		if v.Kind == ArrayValue {
-			for v.Array.Next() {
+			arr := v.Array
+			for arr.Next() {
 			}
 		} else if v.Kind == ObjectValue {
-			for v.Object.Next() {
+			obj := v.Object
+			for obj.Next() {
 			}
 		}
 		return r.err
