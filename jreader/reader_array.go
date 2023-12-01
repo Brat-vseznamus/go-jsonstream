@@ -42,7 +42,7 @@ func (arr *ArrayState) IsDefined() bool {
 func (arr *ArrayState) Next() bool {
 	if arr.r.tr.options.lazyRead {
 		reader := &arr.r.tr
-		tape := &reader.structTreePointer
+		tape := &reader.structBuffer
 		currPos := tape.Pos
 		initPos := arr.arrayIndex
 

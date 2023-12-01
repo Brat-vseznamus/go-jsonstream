@@ -82,7 +82,7 @@ func (obj *ObjectState) IsDefined() bool {
 func (obj *ObjectState) Next() bool {
 	if obj.r.tr.options.lazyRead {
 		reader := &obj.r.tr
-		tape := &reader.structTreePointer
+		tape := &reader.structBuffer
 		currPos := tape.Pos
 		initPos := obj.objectIndex
 

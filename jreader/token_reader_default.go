@@ -79,15 +79,16 @@ type readerOptions struct {
 }
 
 type tokenReader struct {
-	data              []byte
-	pos               int
-	len               int
-	hasUnread         bool
-	unreadToken       token
-	lastPos           int
-	charBuffer        *[]byte
-	structTreePointer JsonStructPointer
-	options           readerOptions
+	data         []byte
+	pos          int
+	len          int
+	hasUnread    bool
+	unreadToken  token
+	lastPos      int
+	charBuffer   *[]byte
+	structBuffer JsonStructPointer
+	tokenBuffer  AnyValue
+	options      readerOptions
 }
 
 func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) tokenReader {
@@ -95,7 +96,7 @@ func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) t
 		data: data,
 		pos:  0,
 		len:  len(data),
-		structTreePointer: JsonStructPointer{
+		structBuffer: JsonStructPointer{
 			Pos:    0,
 			Values: buffer,
 		},
@@ -207,7 +208,7 @@ func (r *tokenReader) PropertyName() ([]byte, error) {
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) Delimiter(delimiter byte) (bool, error) {
 	if r.options.lazyRead {
-		currStruct, err := r.structTreePointer.CurrentStruct()
+		currStruct, err := r.structBuffer.CurrentStruct()
 		if err != nil {
 			return false, err
 		}
@@ -282,29 +283,38 @@ func badArrayOrObjectItemMessage(isObject bool) string {
 // an array or object Value. If so, it returns (AnyValue, nil) and consumes the token; if not, it
 // returns an error. Unlike Reader.Any(), for array and object values it does not create an
 // ArrayState or ObjectState.
-func (r *tokenReader) Any() (AnyValue, error) {
+func (r *tokenReader) Any() (*AnyValue, error) {
 	t, err := r.next()
 	if err != nil {
-		return AnyValue{}, err
+		return &r.tokenBuffer, err
 	}
 	switch t.kind {
 	case boolToken:
-		return AnyValue{Kind: BoolValue, Bool: t.boolValue}, nil
+		r.tokenBuffer.Kind = BoolValue
+		r.tokenBuffer.Bool = t.boolValue
+		return &r.tokenBuffer, nil
 	case numberToken:
-		return AnyValue{Kind: NumberValue, Number: t.numberValue}, nil
+		r.tokenBuffer.Kind = NumberValue
+		r.tokenBuffer.Number = t.numberValue
+		return &r.tokenBuffer, nil
 	case stringToken:
-		return AnyValue{Kind: StringValue, String: t.stringValue}, nil
+		r.tokenBuffer.Kind = StringValue
+		r.tokenBuffer.String = t.stringValue
+		return &r.tokenBuffer, nil
 	case delimiterToken:
 		if t.delimiter == '[' {
-			return AnyValue{Kind: ArrayValue}, nil
+			r.tokenBuffer.Kind = ArrayValue
+			return &r.tokenBuffer, nil
 		}
 		if t.delimiter == '{' {
-			return AnyValue{Kind: ObjectValue}, nil
+			r.tokenBuffer.Kind = ObjectValue
+			return &r.tokenBuffer, nil
 		}
-		return AnyValue{},
+		return nil,
 			SyntaxError{Message: errMsgUnexpectedChar, Value: string(t.delimiter), Offset: r.lastPos}
 	default:
-		return AnyValue{Kind: NullValue}, nil
+		r.tokenBuffer.Kind = NullValue
+		return &r.tokenBuffer, nil
 	}
 }
 
@@ -326,7 +336,7 @@ func (r *tokenReader) next() (token, error) {
 	// characters except within a string literal.
 	case b >= 'a' && b <= 'z':
 		if r.options.lazyRead {
-			r.structTreePointer.Next()
+			r.structBuffer.Next()
 			if b == 'f' {
 				return token{kind: boolToken, boolValue: false}, nil
 			}
@@ -353,9 +363,9 @@ func (r *tokenReader) next() (token, error) {
 		}
 	case (b >= '0' && b <= '9') || b == '-':
 		if r.options.lazyRead {
-			curStruct, _ := r.structTreePointer.CurrentStruct()
+			curStruct, _ := r.structBuffer.CurrentStruct()
 			nBytes := r.data[curStruct.Start:curStruct.End]
-			r.structTreePointer.Next()
+			r.structBuffer.Next()
 			return token{kind: numberToken, numberValue: Number{Value: nBytes}}, nil
 		} else {
 			if n, ok := r.readNumber(b); ok {
@@ -365,9 +375,9 @@ func (r *tokenReader) next() (token, error) {
 		}
 	case b == '"':
 		if r.options.lazyRead {
-			curStruct, _ := r.structTreePointer.CurrentStruct()
+			curStruct, _ := r.structBuffer.CurrentStruct()
 			sBytes := r.data[(curStruct.Start + 1):(curStruct.End - 1)]
-			r.structTreePointer.Next()
+			r.structBuffer.Next()
 			return token{kind: stringToken, stringValue: sBytes}, nil
 		} else {
 			s, err := r.readString()
@@ -418,7 +428,7 @@ func (r *tokenReader) unreadByte() {
 
 func (r *tokenReader) skipWhitespaceAndReadByte() (byte, bool) {
 	if r.options.lazyRead {
-		curStruct, err := r.structTreePointer.CurrentStruct()
+		curStruct, err := r.structBuffer.CurrentStruct()
 		if err != nil {
 			return 0, false
 		}

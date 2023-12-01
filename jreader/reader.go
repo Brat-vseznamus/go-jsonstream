@@ -326,7 +326,7 @@ func (r *Reader) tryArray(allowNull bool) ArrayState {
 	}
 	if gotDelim {
 		if r.tr.options.lazyRead {
-			return ArrayState{r: r, arrayIndex: r.tr.structTreePointer.Pos}
+			return ArrayState{r: r, arrayIndex: r.tr.structBuffer.Pos}
 		} else {
 			return ArrayState{r: r}
 		}
@@ -385,7 +385,7 @@ func (r *Reader) tryObject(allowNull bool) ObjectState {
 	}
 	if gotDelim {
 		if r.tr.options.lazyRead {
-			return ObjectState{r: r, objectIndex: r.tr.structTreePointer.Pos}
+			return ObjectState{r: r, objectIndex: r.tr.structBuffer.Pos}
 		} else {
 			return ObjectState{r: r}
 		}
@@ -404,29 +404,33 @@ func (r *Reader) tryObject(allowNull bool) ObjectState {
 //
 // If there is a parsing error, the return value is the same as for a null and the Reader enters
 // a failed state, which you can detect with Error().
-func (r *Reader) Any() AnyValue {
+func (r *Reader) Any() *AnyValue {
 	r.awaitingReadValue = false
 	if r.err != nil {
-		return AnyValue{}
+		return nil
 	}
 	v, err := r.tr.Any()
 	if err != nil {
 		r.err = err
-		return AnyValue{}
+		return nil
 	}
 	switch v.Kind {
 	case BoolValue:
-		return AnyValue{Kind: v.Kind, Bool: v.Bool}
+		return v
 	case NumberValue:
-		return AnyValue{Kind: v.Kind, Number: v.Number}
+		return v
 	case StringValue:
-		return AnyValue{Kind: v.Kind, String: v.String}
+		return v
 	case ArrayValue:
-		return AnyValue{Kind: v.Kind, Array: ArrayState{r: r, arrayIndex: r.tr.structTreePointer.Pos}}
+		v.Array.arrayIndex = r.tr.structBuffer.Pos
+		v.Array.r = r
+		return v
 	case ObjectValue:
-		return AnyValue{Kind: v.Kind, Object: ObjectState{r: r, objectIndex: r.tr.structTreePointer.Pos}}
+		v.Object.objectIndex = r.tr.structBuffer.Pos
+		v.Object.r = r
+		return v
 	default:
-		return AnyValue{Kind: NullValue}
+		return v
 	}
 }
 
@@ -434,7 +438,7 @@ func (r *Reader) Any() AnyValue {
 // recurses to also consume and discard all array elements or object properties.
 func (r *Reader) SkipValue() error {
 	if r.tr.options.lazyRead {
-		skipped := r.tr.structTreePointer.SkipSubTree()
+		skipped := r.tr.structBuffer.SkipSubTree()
 		if skipped {
 			return nil
 		} else {
@@ -508,8 +512,8 @@ type JsonTreeStruct struct {
 func (r *Reader) Destruct() {
 	r.tr.options.lazyParse = true
 	cr := *r
-	*r.tr.structTreePointer.Values = (*r.tr.structTreePointer.Values)[:0]
-	r.tr.structTreePointer.Pos = 0
+	*r.tr.structBuffer.Values = (*r.tr.structBuffer.Values)[:0]
+	r.tr.structBuffer.Pos = 0
 	cr.destruct()
 	r.tr.options.lazyRead = true
 	r.tr.options.lazyParse = false
@@ -517,7 +521,7 @@ func (r *Reader) Destruct() {
 
 func (r *Reader) destruct() {
 	value := r.Any()
-	tree := r.tr.structTreePointer.Values
+	tree := r.tr.structBuffer.Values
 
 	pos := len(*tree)
 	*tree = append(*tree, JsonTreeStruct{Start: r.tr.lastPos, SubTreeSize: 1})
