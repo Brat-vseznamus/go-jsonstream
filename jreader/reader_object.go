@@ -38,13 +38,10 @@ import "fmt"
 // If the schema requires certain properties to always be present, the WithRequiredProperties method is
 // a convenient way to enforce this.
 type ObjectState struct {
-	r                     *Reader
-	afterFirst            bool
-	name                  []byte
-	requiredProps         []string
-	requiredPropsFound    []bool
-	requiredPropsPrealloc [20]bool // used as initial base array for requiredPropsFound to avoid allocation
-	objectIndex           int
+	r           *Reader
+	afterFirst  bool
+	name        []byte
+	objectIndex int
 }
 
 // WithRequiredProperties adds a requirement that the specified JSON property name(s) must appear
@@ -64,13 +61,6 @@ type ObjectState struct {
 //
 // For efficiency, it is best to preallocate the list of property names globally rather than creating
 // it inline.
-func (obj ObjectState) WithRequiredProperties(requiredProps []string) ObjectState {
-	ret := obj
-	if len(requiredProps) > 0 {
-		ret.requiredProps = requiredProps
-	}
-	return ret
-}
 
 // IsDefined returns true if the ObjectState represents an actual object, or false if it was
 // parsed from a null value or was the result of an error. If IsDefined is false, Next will
@@ -132,13 +122,6 @@ func (obj *ObjectState) Next() bool {
 		}
 		var isEnd bool
 		var err error
-		if !obj.afterFirst && len(obj.requiredProps) != 0 {
-			// Initialize the bool slice that we'll use to keep track of what properties we found.
-			// See comment on requiredPropsFoundSlice().
-			if len(obj.requiredProps) > len(obj.requiredPropsPrealloc) {
-				obj.requiredPropsFound = make([]bool, len(obj.requiredProps))
-			}
-		}
 
 		if obj.afterFirst {
 			if obj.r.awaitingReadValue {
@@ -157,15 +140,6 @@ func (obj *ObjectState) Next() bool {
 		}
 		if isEnd {
 			obj.name = nil
-			if obj.requiredProps != nil {
-				found := obj.requiredPropsFoundSlice()
-				for i, requiredName := range obj.requiredProps {
-					if !found[i] {
-						obj.r.AddError(RequiredPropertyError{Name: requiredName, Offset: obj.r.tr.LastPos()})
-						break
-					}
-				}
-			}
 			return false
 		}
 		name, err := obj.r.tr.PropertyName()
@@ -175,15 +149,6 @@ func (obj *ObjectState) Next() bool {
 		}
 		obj.name = name
 		obj.r.awaitingReadValue = true
-		if obj.requiredProps != nil {
-			found := obj.requiredPropsFoundSlice()
-			for i, requiredName := range obj.requiredProps {
-				if requiredName == string(name) {
-					found[i] = true
-					break
-				}
-			}
-		}
 		return true
 	}
 }
@@ -206,9 +171,3 @@ func (obj *ObjectState) Name() []byte {
 // to the array (obj.requiredProps = obj.requiredPropsFound[0:len(obj.requiredProps)]); the Go
 // compiler can't prove that that's safe, so it will make everything escape to the heap. Instead
 // we have to conditionally reference one or the other here.
-func (obj *ObjectState) requiredPropsFoundSlice() []bool {
-	if obj.requiredPropsFound != nil {
-		return obj.requiredPropsFound
-	}
-	return obj.requiredPropsPrealloc[0:len(obj.requiredProps)]
-}
