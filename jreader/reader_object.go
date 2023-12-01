@@ -1,5 +1,7 @@
 package jreader
 
+import "fmt"
+
 // ObjectState is returned by Reader's Object and ObjectOrNull methods. Use it in conjunction with
 // Reader to iterate through a JSON object. To read the value of each object property, you will
 // still use the Reader's methods. Properties may appear in any order.
@@ -42,6 +44,7 @@ type ObjectState struct {
 	requiredProps         []string
 	requiredPropsFound    []bool
 	requiredPropsPrealloc [20]bool // used as initial base array for requiredPropsFound to avoid allocation
+	objectIndex           int
 }
 
 // WithRequiredProperties adds a requirement that the specified JSON property name(s) must appear
@@ -87,64 +90,102 @@ func (obj *ObjectState) IsDefined() bool {
 //
 // See ObjectState for example code.
 func (obj *ObjectState) Next() bool {
-	if obj.r == nil || obj.r.err != nil {
-		return false
-	}
-	var isEnd bool
-	var err error
-	if !obj.afterFirst && len(obj.requiredProps) != 0 {
-		// Initialize the bool slice that we'll use to keep track of what properties we found.
-		// See comment on requiredPropsFoundSlice().
-		if len(obj.requiredProps) > len(obj.requiredPropsPrealloc) {
-			obj.requiredPropsFound = make([]bool, len(obj.requiredProps))
-		}
-	}
+	if obj.r.tr.options.lazyRead {
+		reader := &obj.r.tr
+		tape := &reader.structTreePointer
+		currPos := tape.Pos
+		initPos := obj.objectIndex
 
-	if obj.afterFirst {
-		if obj.r.awaitingReadValue {
-			if err := obj.r.SkipValue(); err != nil {
+		if !tape.HasNext() {
+			return false
+		}
+
+		currStruct, err := tape.CurrentStruct()
+		if err != nil {
+			obj.r.AddError(fmt.Errorf("object doesn't match any struct"))
+			return false
+		}
+
+		if initPos == currPos {
+			tape.Next()
+			if currStruct.SubTreeSize != 1 {
+				currStruct, err = tape.CurrentStruct()
+				obj.name = currStruct.AssocValue
+				return true
+			} else {
+				obj.name = nil
 				return false
 			}
 		}
-		isEnd, err = obj.r.tr.EndDelimiterOrComma('}')
+
+		if (*tape.Values)[initPos].SubTreeSize+initPos != currPos {
+			currStruct, err = tape.CurrentStruct()
+			obj.name = currStruct.AssocValue
+			return true
+		} else {
+			obj.name = nil
+			return false
+		}
 	} else {
-		obj.afterFirst = true
-		isEnd, err = obj.r.tr.Delimiter('}')
-	}
-	if err != nil {
-		obj.r.AddError(err)
-		return false
-	}
-	if isEnd {
-		obj.name = nil
+		if obj.r == nil || obj.r.err != nil {
+			return false
+		}
+		var isEnd bool
+		var err error
+		if !obj.afterFirst && len(obj.requiredProps) != 0 {
+			// Initialize the bool slice that we'll use to keep track of what properties we found.
+			// See comment on requiredPropsFoundSlice().
+			if len(obj.requiredProps) > len(obj.requiredPropsPrealloc) {
+				obj.requiredPropsFound = make([]bool, len(obj.requiredProps))
+			}
+		}
+
+		if obj.afterFirst {
+			if obj.r.awaitingReadValue {
+				if err := obj.r.SkipValue(); err != nil {
+					return false
+				}
+			}
+			isEnd, err = obj.r.tr.EndDelimiterOrComma('}')
+		} else {
+			obj.afterFirst = true
+			isEnd, err = obj.r.tr.Delimiter('}')
+		}
+		if err != nil {
+			obj.r.AddError(err)
+			return false
+		}
+		if isEnd {
+			obj.name = nil
+			if obj.requiredProps != nil {
+				found := obj.requiredPropsFoundSlice()
+				for i, requiredName := range obj.requiredProps {
+					if !found[i] {
+						obj.r.AddError(RequiredPropertyError{Name: requiredName, Offset: obj.r.tr.LastPos()})
+						break
+					}
+				}
+			}
+			return false
+		}
+		name, err := obj.r.tr.PropertyName()
+		if err != nil {
+			obj.r.AddError(err)
+			return false
+		}
+		obj.name = name
+		obj.r.awaitingReadValue = true
 		if obj.requiredProps != nil {
 			found := obj.requiredPropsFoundSlice()
 			for i, requiredName := range obj.requiredProps {
-				if !found[i] {
-					obj.r.AddError(RequiredPropertyError{Name: requiredName, Offset: obj.r.tr.LastPos()})
+				if requiredName == string(name) {
+					found[i] = true
 					break
 				}
 			}
 		}
-		return false
+		return true
 	}
-	name, err := obj.r.tr.PropertyName()
-	if err != nil {
-		obj.r.AddError(err)
-		return false
-	}
-	obj.name = name
-	obj.r.awaitingReadValue = true
-	if obj.requiredProps != nil {
-		found := obj.requiredPropsFoundSlice()
-		for i, requiredName := range obj.requiredProps {
-			if requiredName == string(name) {
-				found[i] = true
-				break
-			}
-		}
-	}
-	return true
 }
 
 // Name returns the name of the current object property, or nil if there is no current property

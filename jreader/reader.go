@@ -325,7 +325,11 @@ func (r *Reader) tryArray(allowNull bool) ArrayState {
 		return ArrayState{}
 	}
 	if gotDelim {
-		return ArrayState{r: r}
+		if r.tr.options.lazyRead {
+			return ArrayState{r: r, arrayIndex: r.tr.structTreePointer.Pos}
+		} else {
+			return ArrayState{r: r}
+		}
 	}
 	r.err = r.typeErrorForCurrentToken(ArrayValue, allowNull)
 	return ArrayState{}
@@ -380,7 +384,11 @@ func (r *Reader) tryObject(allowNull bool) ObjectState {
 		return ObjectState{}
 	}
 	if gotDelim {
-		return ObjectState{r: r}
+		if r.tr.options.lazyRead {
+			return ObjectState{r: r, objectIndex: r.tr.structTreePointer.Pos}
+		} else {
+			return ObjectState{r: r}
+		}
 	}
 	r.err = r.typeErrorForCurrentToken(ObjectValue, allowNull)
 	return ObjectState{}
@@ -414,9 +422,9 @@ func (r *Reader) Any() AnyValue {
 	case StringValue:
 		return AnyValue{Kind: v.Kind, String: v.String}
 	case ArrayValue:
-		return AnyValue{Kind: v.Kind, Array: ArrayState{r: r}}
+		return AnyValue{Kind: v.Kind, Array: ArrayState{r: r, arrayIndex: r.tr.structTreePointer.Pos}}
 	case ObjectValue:
-		return AnyValue{Kind: v.Kind, Object: ObjectState{r: r}}
+		return AnyValue{Kind: v.Kind, Object: ObjectState{r: r, objectIndex: r.tr.structTreePointer.Pos}}
 	default:
 		return AnyValue{Kind: NullValue}
 	}
@@ -425,19 +433,28 @@ func (r *Reader) Any() AnyValue {
 // SkipValue consumes and discards the next JSON value of any type. For an array or object value, it
 // recurses to also consume and discard all array elements or object properties.
 func (r *Reader) SkipValue() error {
-	r.awaitingReadValue = false
-	if r.err != nil {
+	if r.tr.options.lazyRead {
+		skipped := r.tr.structTreePointer.SkipSubTree()
+		if skipped {
+			return nil
+		} else {
+			return fmt.Errorf("subtree can't be skipped")
+		}
+	} else {
+		r.awaitingReadValue = false
+		if r.err != nil {
+			return r.err
+		}
+		v := r.Any()
+		if v.Kind == ArrayValue {
+			for v.Array.Next() {
+			}
+		} else if v.Kind == ObjectValue {
+			for v.Object.Next() {
+			}
+		}
 		return r.err
 	}
-	v := r.Any()
-	if v.Kind == ArrayValue {
-		for v.Array.Next() {
-		}
-	} else if v.Kind == ObjectValue {
-		for v.Object.Next() {
-		}
-	}
-	return r.err
 }
 
 type JsonStructPointer struct {
@@ -445,8 +462,12 @@ type JsonStructPointer struct {
 	Values *[]JsonTreeStruct
 }
 
+func (jPointer *JsonStructPointer) HasNext() bool {
+	return jPointer.Pos < len(*jPointer.Values)
+}
+
 func (jPointer *JsonStructPointer) Next() bool {
-	if jPointer.Pos+1 >= len(*jPointer.Values) {
+	if !jPointer.HasNext() {
 		return false
 	}
 	jPointer.Pos++

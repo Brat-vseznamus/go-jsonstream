@@ -1,5 +1,7 @@
 package jreader
 
+import "fmt"
+
 // ArrayState is returned by Reader's Array and ArrayOrNull methods. Use it in conjunction with
 // Reader to iterate through a JSON array. To read the value of each array element, you will still
 // use the Reader's methods.
@@ -18,6 +20,7 @@ package jreader
 type ArrayState struct {
 	r          *Reader
 	afterFirst bool
+	arrayIndex int
 }
 
 // IsDefined returns true if the ArrayState represents an actual array, or false if it was
@@ -37,28 +40,52 @@ func (arr *ArrayState) IsDefined() bool {
 //
 // See ArrayState for example code.
 func (arr *ArrayState) Next() bool {
-	if arr.r == nil || arr.r.err != nil {
-		return false
-	}
-	var isEnd bool
-	var err error
-	if arr.afterFirst {
-		if arr.r.awaitingReadValue {
-			if err := arr.r.SkipValue(); err != nil {
-				return false
-			}
+	if arr.r.tr.options.lazyRead {
+		reader := &arr.r.tr
+		tape := &reader.structTreePointer
+		currPos := tape.Pos
+		initPos := arr.arrayIndex
+
+		if !tape.HasNext() {
+			return false
 		}
-		isEnd, err = arr.r.tr.EndDelimiterOrComma(']')
+
+		currStruct, err := tape.CurrentStruct()
+		if err != nil {
+			arr.r.AddError(fmt.Errorf("object doesn't match any struct"))
+			return false
+		}
+
+		if initPos == currPos {
+			tape.Next()
+			return currStruct.SubTreeSize != 1
+		}
+
+		return (*tape.Values)[initPos].SubTreeSize+initPos != currPos
 	} else {
-		arr.afterFirst = true
-		isEnd, err = arr.r.tr.Delimiter(']')
+		if arr.r == nil || arr.r.err != nil {
+			return false
+		}
+		var isEnd bool
+		var err error
+		if arr.afterFirst {
+			if arr.r.awaitingReadValue {
+				if err := arr.r.SkipValue(); err != nil {
+					return false
+				}
+			}
+			isEnd, err = arr.r.tr.EndDelimiterOrComma(']')
+		} else {
+			arr.afterFirst = true
+			isEnd, err = arr.r.tr.Delimiter(']')
+		}
+		if err != nil {
+			arr.r.AddError(err)
+			return false
+		}
+		if !isEnd {
+			arr.r.awaitingReadValue = true
+		}
+		return !isEnd
 	}
-	if err != nil {
-		arr.r.AddError(err)
-		return false
-	}
-	if !isEnd {
-		arr.r.awaitingReadValue = true
-	}
-	return !isEnd
 }

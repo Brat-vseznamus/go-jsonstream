@@ -11,6 +11,7 @@ package jreader
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strconv"
 	"unicode"
@@ -205,27 +206,35 @@ func (r *tokenReader) PropertyName() ([]byte, error) {
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) Delimiter(delimiter byte) (bool, error) {
-	if r.hasUnread {
-		if r.unreadToken.kind == delimiterToken && r.unreadToken.delimiter == delimiter {
-			r.hasUnread = false
+	if r.options.lazyRead {
+		currStruct, err := r.structTreePointer.CurrentStruct()
+		if err != nil {
+			return false, err
+		}
+		return r.data[currStruct.Start] == delimiter, nil
+	} else {
+		if r.hasUnread {
+			if r.unreadToken.kind == delimiterToken && r.unreadToken.delimiter == delimiter {
+				r.hasUnread = false
+				return true, nil
+			}
+			return false, nil
+		}
+		b, ok := r.skipWhitespaceAndReadByte()
+		if !ok {
+			return false, nil
+		}
+		if b == delimiter {
 			return true, nil
 		}
+		r.unreadByte() // we'll back up and try to parse a token, to see if it's valid JSON or not
+		token, err := r.next()
+		if err != nil {
+			return false, err // it was malformed JSON
+		}
+		r.putBack(token) // it was valid JSON, we just haven't hit that delimiter
 		return false, nil
 	}
-	b, ok := r.skipWhitespaceAndReadByte()
-	if !ok {
-		return false, nil
-	}
-	if b == delimiter {
-		return true, nil
-	}
-	r.unreadByte() // we'll back up and try to parse a token, to see if it's valid JSON or not
-	token, err := r.next()
-	if err != nil {
-		return false, err // it was malformed JSON
-	}
-	r.putBack(token) // it was valid JSON, we just haven't hit that delimiter
-	return false, nil
 }
 
 // EndDelimiterOrComma checks whether the next token is the specified ASCII delimiter character
@@ -233,29 +242,33 @@ func (r *tokenReader) Delimiter(delimiter byte) (bool, error) {
 // If it is a comma, it returns (false, nil) and consumes the token. For anything else, it
 // returns an error. The delimiter parameter will always be either '}' or ']'.
 func (r *tokenReader) EndDelimiterOrComma(delimiter byte) (bool, error) {
-	if r.hasUnread {
-		if r.unreadToken.kind == delimiterToken &&
-			(r.unreadToken.delimiter == delimiter || r.unreadToken.delimiter == ',') {
-			r.hasUnread = false
-			return r.unreadToken.delimiter == delimiter, nil
+	if r.options.lazyRead {
+		return false, fmt.Errorf("can't be used in lazy mode")
+	} else {
+		if r.hasUnread {
+			if r.unreadToken.kind == delimiterToken &&
+				(r.unreadToken.delimiter == delimiter || r.unreadToken.delimiter == ',') {
+				r.hasUnread = false
+				return r.unreadToken.delimiter == delimiter, nil
+			}
+			return false, SyntaxError{Message: badArrayOrObjectItemMessage(delimiter == '}'),
+				Value: r.unreadToken.description(), Offset: r.lastPos}
+		}
+		b, ok := r.skipWhitespaceAndReadByte()
+		if !ok {
+			return false, io.EOF
+		}
+		if b == delimiter || b == ',' {
+			return b == delimiter, nil
+		}
+		r.unreadByte()
+		t, err := r.next()
+		if err != nil {
+			return false, err
 		}
 		return false, SyntaxError{Message: badArrayOrObjectItemMessage(delimiter == '}'),
-			Value: r.unreadToken.description(), Offset: r.lastPos}
+			Value: t.description(), Offset: r.lastPos}
 	}
-	b, ok := r.skipWhitespaceAndReadByte()
-	if !ok {
-		return false, io.EOF
-	}
-	if b == delimiter || b == ',' {
-		return b == delimiter, nil
-	}
-	r.unreadByte()
-	t, err := r.next()
-	if err != nil {
-		return false, err
-	}
-	return false, SyntaxError{Message: badArrayOrObjectItemMessage(delimiter == '}'),
-		Value: t.description(), Offset: r.lastPos}
 }
 
 func badArrayOrObjectItemMessage(isObject bool) string {
@@ -312,29 +325,57 @@ func (r *tokenReader) next() (token, error) {
 	// We can get away with reading bytes instead of runes because the JSON spec doesn't allow multi-byte
 	// characters except within a string literal.
 	case b >= 'a' && b <= 'z':
-		n := r.consumeASCIILowercaseAlphabeticChars() + 1
-		id := r.data[r.lastPos : r.lastPos+n]
-		if b == 'f' && bytes.Equal(id, tokenFalse) {
-			return token{kind: boolToken, boolValue: false}, nil
+		if r.options.lazyRead {
+			r.structTreePointer.Next()
+			if b == 'f' {
+				return token{kind: boolToken, boolValue: false}, nil
+			}
+			if b == 't' {
+				return token{kind: boolToken, boolValue: true}, nil
+			}
+			if b == 'n' {
+				return token{kind: nullToken}, nil
+			}
+			return token{}, SyntaxError{Message: errMsgUnexpectedSymbol, Value: string(b), Offset: r.lastPos}
+		} else {
+			n := r.consumeASCIILowercaseAlphabeticChars() + 1
+			id := r.data[r.lastPos : r.lastPos+n]
+			if b == 'f' && bytes.Equal(id, tokenFalse) {
+				return token{kind: boolToken, boolValue: false}, nil
+			}
+			if b == 't' && bytes.Equal(id, tokenTrue) {
+				return token{kind: boolToken, boolValue: true}, nil
+			}
+			if b == 'n' && bytes.Equal(id, tokenNull) {
+				return token{kind: nullToken}, nil
+			}
+			return token{}, SyntaxError{Message: errMsgUnexpectedSymbol, Value: string(id), Offset: r.lastPos}
 		}
-		if b == 't' && bytes.Equal(id, tokenTrue) {
-			return token{kind: boolToken, boolValue: true}, nil
-		}
-		if b == 'n' && bytes.Equal(id, tokenNull) {
-			return token{kind: nullToken}, nil
-		}
-		return token{}, SyntaxError{Message: errMsgUnexpectedSymbol, Value: string(id), Offset: r.lastPos}
 	case (b >= '0' && b <= '9') || b == '-':
-		if n, ok := r.readNumber(b); ok {
-			return token{kind: numberToken, numberValue: n}, nil
+		if r.options.lazyRead {
+			curStruct, _ := r.structTreePointer.CurrentStruct()
+			nBytes := r.data[curStruct.Start:curStruct.End]
+			r.structTreePointer.Next()
+			return token{kind: numberToken, numberValue: Number{Value: nBytes}}, nil
+		} else {
+			if n, ok := r.readNumber(b); ok {
+				return token{kind: numberToken, numberValue: n}, nil
+			}
+			return token{}, SyntaxError{Message: errMsgInvalidNumber, Offset: r.lastPos}
 		}
-		return token{}, SyntaxError{Message: errMsgInvalidNumber, Offset: r.lastPos}
 	case b == '"':
-		s, err := r.readString()
-		if err != nil {
-			return token{}, err
+		if r.options.lazyRead {
+			curStruct, _ := r.structTreePointer.CurrentStruct()
+			sBytes := r.data[(curStruct.Start + 1):(curStruct.End - 1)]
+			r.structTreePointer.Next()
+			return token{kind: stringToken, stringValue: sBytes}, nil
+		} else {
+			s, err := r.readString()
+			if err != nil {
+				return token{}, err
+			}
+			return token{kind: stringToken, stringValue: s}, nil
 		}
-		return token{kind: stringToken, stringValue: s}, nil
 	case b == '[', b == ']', b == '{', b == '}', b == ':', b == ',':
 		return token{kind: delimiterToken, delimiter: b}, nil
 	}
@@ -376,14 +417,22 @@ func (r *tokenReader) unreadByte() {
 }
 
 func (r *tokenReader) skipWhitespaceAndReadByte() (byte, bool) {
-	for {
-		ch, ok := r.readByte()
-		if !ok {
+	if r.options.lazyRead {
+		curStruct, err := r.structTreePointer.CurrentStruct()
+		if err != nil {
 			return 0, false
 		}
-		if !unicode.IsSpace(rune(ch)) {
-			r.lastPos = r.pos - 1
-			return ch, true
+		return r.data[curStruct.Start], true
+	} else {
+		for {
+			ch, ok := r.readByte()
+			if !ok {
+				return 0, false
+			}
+			if !unicode.IsSpace(rune(ch)) {
+				r.lastPos = r.pos - 1
+				return ch, true
+			}
 		}
 	}
 }
