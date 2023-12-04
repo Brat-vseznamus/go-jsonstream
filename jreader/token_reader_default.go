@@ -79,16 +79,17 @@ type readerOptions struct {
 }
 
 type tokenReader struct {
-	data         []byte
-	pos          int
-	len          int
-	hasUnread    bool
-	unreadToken  token
-	lastPos      int
-	charBuffer   *[]byte
-	structBuffer JsonStructPointer
-	tokenBuffer  AnyValue
-	options      readerOptions
+	data           []byte
+	pos            int
+	len            int
+	hasUnread      bool
+	unreadToken    token
+	lastPos        int
+	charBuffer     *[]byte
+	structBuffer   JsonStructPointer
+	anyValueBuffer AnyValue
+	tokenBuffer    token
+	options        readerOptions
 }
 
 func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) tokenReader {
@@ -137,6 +138,9 @@ func (r *tokenReader) getPos() int {
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) Null() (bool, error) {
 	t, err := r.next()
+	if t == nil {
+		return false, err
+	}
 	if err != nil {
 		return false, err
 	}
@@ -156,6 +160,9 @@ func (r *tokenReader) Null() (bool, error) {
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) Bool() (bool, error) {
 	t, err := r.consumeScalar(boolToken)
+	if t == nil {
+		return false, err
+	}
 	return t.boolValue, err
 }
 
@@ -165,6 +172,9 @@ func (r *tokenReader) Bool() (bool, error) {
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) Number() (Number, error) {
 	t, err := r.consumeScalar(numberToken)
+	if t == nil {
+		return Number{}, err
+	}
 	return t.numberValue, err
 }
 
@@ -174,6 +184,9 @@ func (r *tokenReader) Number() (Number, error) {
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) String() ([]byte, error) {
 	t, err := r.consumeScalar(stringToken)
+	if t == nil {
+		return nil, err
+	}
 	return t.stringValue, err
 }
 
@@ -187,6 +200,9 @@ func (r *tokenReader) String() ([]byte, error) {
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) PropertyName() ([]byte, error) {
 	t, err := r.consumeScalar(stringToken)
+	if t == nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +246,9 @@ func (r *tokenReader) Delimiter(delimiter byte) (bool, error) {
 		}
 		r.unreadByte() // we'll back up and try to parse a token, to see if it's valid JSON or not
 		token, err := r.next()
+		if token == nil {
+			return false, err
+		}
 		if err != nil {
 			return false, err // it was malformed JSON
 		}
@@ -264,6 +283,9 @@ func (r *tokenReader) EndDelimiterOrComma(delimiter byte) (bool, error) {
 		}
 		r.unreadByte()
 		t, err := r.next()
+		if t == nil {
+			return false, err
+		}
 		if err != nil {
 			return false, err
 		}
@@ -285,50 +307,53 @@ func badArrayOrObjectItemMessage(isObject bool) string {
 // ArrayState or ObjectState.
 func (r *tokenReader) Any() (*AnyValue, error) {
 	t, err := r.next()
+	if t == nil {
+		return nil, err
+	}
 	if err != nil {
-		return &r.tokenBuffer, err
+		return &r.anyValueBuffer, err
 	}
 	switch t.kind {
 	case boolToken:
-		r.tokenBuffer.Kind = BoolValue
-		r.tokenBuffer.Bool = t.boolValue
-		return &r.tokenBuffer, nil
+		r.anyValueBuffer.Kind = BoolValue
+		r.anyValueBuffer.Bool = t.boolValue
+		return &r.anyValueBuffer, nil
 	case numberToken:
-		r.tokenBuffer.Kind = NumberValue
-		r.tokenBuffer.Number = t.numberValue
-		return &r.tokenBuffer, nil
+		r.anyValueBuffer.Kind = NumberValue
+		r.anyValueBuffer.Number = t.numberValue
+		return &r.anyValueBuffer, nil
 	case stringToken:
-		r.tokenBuffer.Kind = StringValue
-		r.tokenBuffer.String = t.stringValue
-		return &r.tokenBuffer, nil
+		r.anyValueBuffer.Kind = StringValue
+		r.anyValueBuffer.String = t.stringValue
+		return &r.anyValueBuffer, nil
 	case delimiterToken:
 		if t.delimiter == '[' {
-			r.tokenBuffer.Kind = ArrayValue
-			return &r.tokenBuffer, nil
+			r.anyValueBuffer.Kind = ArrayValue
+			return &r.anyValueBuffer, nil
 		}
 		if t.delimiter == '{' {
-			r.tokenBuffer.Kind = ObjectValue
-			return &r.tokenBuffer, nil
+			r.anyValueBuffer.Kind = ObjectValue
+			return &r.anyValueBuffer, nil
 		}
 		return nil,
 			SyntaxError{Message: errMsgUnexpectedChar, Value: string(t.delimiter), Offset: r.lastPos}
 	default:
-		r.tokenBuffer.Kind = NullValue
-		return &r.tokenBuffer, nil
+		r.anyValueBuffer.Kind = NullValue
+		return &r.anyValueBuffer, nil
 	}
 }
 
 // Attempts to parse and consume the next token, ignoring whitespace. A token is either a valid JSON scalar
 // Value or an ASCII delimiter character. If a token was previously unread using putBack, it consumes that
 // instead.
-func (r *tokenReader) next() (token, error) {
+func (r *tokenReader) next() (*token, error) {
 	if r.hasUnread {
 		r.hasUnread = false
-		return r.unreadToken, nil
+		return &r.unreadToken, nil
 	}
 	b, ok := r.skipWhitespaceAndReadByte()
 	if !ok {
-		return token{}, io.EOF
+		return nil, io.EOF
 	}
 
 	switch {
@@ -338,78 +363,98 @@ func (r *tokenReader) next() (token, error) {
 		if r.options.lazyRead {
 			r.structBuffer.Next()
 			if b == 'f' {
-				return token{kind: boolToken, boolValue: false}, nil
+				r.tokenBuffer.kind = boolToken
+				r.tokenBuffer.boolValue = false
+				return &r.tokenBuffer, nil
 			}
 			if b == 't' {
-				return token{kind: boolToken, boolValue: true}, nil
+				r.tokenBuffer.kind = boolToken
+				r.tokenBuffer.boolValue = true
+				return &r.tokenBuffer, nil
 			}
 			if b == 'n' {
-				return token{kind: nullToken}, nil
+				r.tokenBuffer.kind = nullToken
+				return &r.tokenBuffer, nil
 			}
-			return token{}, SyntaxError{Message: errMsgUnexpectedSymbol, Value: string(b), Offset: r.lastPos}
+			return nil, SyntaxError{Message: errMsgUnexpectedSymbol, Value: string(b), Offset: r.lastPos}
 		} else {
 			n := r.consumeASCIILowercaseAlphabeticChars() + 1
 			id := r.data[r.lastPos : r.lastPos+n]
 			if b == 'f' && bytes.Equal(id, tokenFalse) {
-				return token{kind: boolToken, boolValue: false}, nil
+				r.tokenBuffer.kind = boolToken
+				r.tokenBuffer.boolValue = false
+				return &r.tokenBuffer, nil
 			}
 			if b == 't' && bytes.Equal(id, tokenTrue) {
-				return token{kind: boolToken, boolValue: true}, nil
+				r.tokenBuffer.kind = boolToken
+				r.tokenBuffer.boolValue = true
+				return &r.tokenBuffer, nil
 			}
 			if b == 'n' && bytes.Equal(id, tokenNull) {
-				return token{kind: nullToken}, nil
+				r.tokenBuffer.kind = nullToken
+				return &r.tokenBuffer, nil
 			}
-			return token{}, SyntaxError{Message: errMsgUnexpectedSymbol, Value: string(id), Offset: r.lastPos}
+			return nil, SyntaxError{Message: errMsgUnexpectedSymbol, Value: string(id), Offset: r.lastPos}
 		}
 	case (b >= '0' && b <= '9') || b == '-':
 		if r.options.lazyRead {
 			curStruct, _ := r.structBuffer.CurrentStruct()
 			nBytes := r.data[curStruct.Start:curStruct.End]
 			r.structBuffer.Next()
-			return token{kind: numberToken, numberValue: Number{Value: nBytes}}, nil
+			r.tokenBuffer.kind = numberToken
+			r.tokenBuffer.numberValue = Number{Value: nBytes}
+			return &r.tokenBuffer, nil
 		} else {
 			if n, ok := r.readNumber(b); ok {
-				return token{kind: numberToken, numberValue: n}, nil
+				r.tokenBuffer.kind = numberToken
+				r.tokenBuffer.numberValue = n
+				return &r.tokenBuffer, nil
 			}
-			return token{}, SyntaxError{Message: errMsgInvalidNumber, Offset: r.lastPos}
+			return nil, SyntaxError{Message: errMsgInvalidNumber, Offset: r.lastPos}
 		}
 	case b == '"':
 		if r.options.lazyRead {
 			curStruct, _ := r.structBuffer.CurrentStruct()
 			sBytes := r.data[(curStruct.Start + 1):(curStruct.End - 1)]
 			r.structBuffer.Next()
-			return token{kind: stringToken, stringValue: sBytes}, nil
+			r.tokenBuffer.kind = stringToken
+			r.tokenBuffer.stringValue = sBytes
+			return &r.tokenBuffer, nil
 		} else {
 			s, err := r.readString()
 			if err != nil {
-				return token{}, err
+				return nil, err
 			}
-			return token{kind: stringToken, stringValue: s}, nil
+			r.tokenBuffer.kind = stringToken
+			r.tokenBuffer.stringValue = s
+			return &r.tokenBuffer, nil
 		}
 	case b == '[', b == ']', b == '{', b == '}', b == ':', b == ',':
-		return token{kind: delimiterToken, delimiter: b}, nil
+		r.tokenBuffer.kind = delimiterToken
+		r.tokenBuffer.delimiter = b
+		return &r.tokenBuffer, nil
 	}
 
-	return token{}, SyntaxError{Message: errMsgUnexpectedChar, Value: string(b), Offset: r.lastPos}
+	return nil, SyntaxError{Message: errMsgUnexpectedChar, Value: string(b), Offset: r.lastPos}
 }
 
-func (r *tokenReader) putBack(token token) {
-	r.unreadToken = token
+func (r *tokenReader) putBack(token *token) {
+	r.unreadToken = *token
 	r.hasUnread = true
 }
 
-func (r *tokenReader) consumeScalar(kind tokenKind) (token, error) {
+func (r *tokenReader) consumeScalar(kind tokenKind) (*token, error) {
 	t, err := r.next()
 	if err != nil {
-		return token{}, err
+		return nil, err
 	}
 	if t.kind == kind {
 		return t, nil
 	}
 	if t.kind == delimiterToken && t.delimiter != '[' && t.delimiter != '{' {
-		return token{}, SyntaxError{Message: errMsgUnexpectedChar, Value: string(t.delimiter), Offset: r.LastPos()}
+		return nil, SyntaxError{Message: errMsgUnexpectedChar, Value: string(t.delimiter), Offset: r.LastPos()}
 	}
-	return token{}, TypeError{Expected: valueKindFromTokenKind(kind),
+	return nil, TypeError{Expected: valueKindFromTokenKind(kind),
 		Actual: t.valueKind(), Offset: r.LastPos()}
 }
 

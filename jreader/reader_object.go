@@ -80,6 +80,9 @@ func (obj *ObjectState) IsDefined() bool {
 //
 // See ObjectState for example code.
 func (obj *ObjectState) Next() bool {
+	if obj.r == nil {
+		return false
+	}
 	if obj.r.tr.options.lazyRead {
 		reader := &obj.r.tr
 		tape := &reader.structBuffer

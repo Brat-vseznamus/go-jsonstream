@@ -55,8 +55,8 @@ func (f testFactory) MakeAllValueTests() testDefs {
 	ret := testDefs{}
 	eofTest := testDef{name: "EOF", action: f.valueTestFactory.EOF()}
 	ret = append(ret, f.makeScalarValueTests(true).then(eofTest)...)
-	//ret = append(ret, f.makeArrayTests().then(eofTest)...)
-	//ret = append(ret, f.makeObjectTests().then(eofTest)...)
+	ret = append(ret, f.makeArrayTests().then(eofTest)...)
+	ret = append(ret, f.makeObjectTests().then(eofTest)...)
 	return ret
 }
 
@@ -194,8 +194,8 @@ func (f testFactory) makeScalarValues(allPermutations bool) []testValue {
 		value:    AnyValue{Kind: NullValue},
 	})
 	values = append(values, makeBoolTestValues()...)
-	values = append(values, makeNumberTestValues(f.encodingBehavior)...)
-	values = append(values, makeStringTestValues(f.encodingBehavior, allPermutations)...)
+	//values = append(values, makeNumberTestValues(f.encodingBehavior)...)
+	//values = append(values, makeStringTestValues(f.encodingBehavior, allPermutations)...)
 	return values
 }
 

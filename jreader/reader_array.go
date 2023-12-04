@@ -40,6 +40,9 @@ func (arr *ArrayState) IsDefined() bool {
 //
 // See ArrayState for example code.
 func (arr *ArrayState) Next() bool {
+	if arr.r == nil {
+		return false
+	}
 	if arr.r.tr.options.lazyRead {
 		reader := &arr.r.tr
 		tape := &reader.structBuffer
