@@ -117,7 +117,7 @@ func TestDestructArrays(t *testing.T) {
 			k: "multiple values array",
 			v: JsonArray{
 				JsonNumber{Value: []byte("123.4")},
-				JsonNumber{Value: []byte("234.5")},
+				JsonString("\"234.5\""),
 				JsonNumber{Value: []byte("345.6")},
 			},
 		},
@@ -190,52 +190,105 @@ func TestDestructRandom(t *testing.T) {
 	buffer := make([]JsonTreeStruct, 0, 100)
 	charBuffer := make([]byte, 0, 100)
 
-	values := []JsonPair{
-		{
-			k: "json element with volume 0",
-			v: RandomJson(0),
-		},
-		{
-			k: "json element with volume 1",
-			v: RandomJson(1),
-		},
-		{
-			k: "json element with volume 2",
-			v: RandomJson(2),
-		},
-		{
-			k: "json element with volume 4",
-			v: RandomJson(4),
-		},
-		{
-			k: "json element with volume 10",
-			v: RandomJson(10),
-		},
-		{
-			k: "json element with volume 100",
-			v: RandomJson(100),
-		},
-		{
-			k: "json element with volume 1000",
-			v: RandomJson(1000),
-		},
-		{
-			k: "json element with volume 100000",
-			v: RandomJson(100000),
-		},
-	}
+	sizes := []int{0, 1, 2, 4, 10, 100, 1000, 100000}
 
-	for _, kv := range values {
-		obj := kv.v
-		objStr := kv.v.JsonToString()
+	for _, s := range sizes {
+		obj := RandomJson(s)
+		objStr := obj.JsonToString()
 
 		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
 		r.Destruct()
 
-		t.Run(kv.k, func(subT *testing.T) {
+		t.Run(fmt.Sprintf("json element with volume %d", s), func(subT *testing.T) {
 			assert.Equal(subT, obj, Build(&r))
 		})
 	}
+}
+
+func TestPartialDestruct(t *testing.T) {
+	buffer := make([]JsonTreeStruct, 0, 100)
+	charBuffer := make([]byte, 0, 100)
+
+	obj := JsonObject{
+		JsonPair{
+			k: "f1",
+			v: JsonNumber{Value: []byte("222")},
+		},
+		JsonPair{
+			k: "f2",
+			v: JsonObject{},
+		},
+		JsonPair{
+			k: "f3",
+			v: JsonArray{
+				JsonObject{
+					JsonPair{
+						k: "f4",
+						v: JsonString("\"222\""),
+					},
+				},
+			},
+		},
+	}
+	objStr := obj.JsonToString()
+
+	r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+
+	je := BuildWithPartialDestruct(&r)
+	assert.Equal(t, obj, je)
+}
+
+func TestPartialDestructRandom(t *testing.T) {
+	buffer := make([]JsonTreeStruct, 0, 100)
+	charBuffer := make([]byte, 0, 100)
+
+	sizes := []int{0, 1, 2, 4, 10, 100, 1000, 100000}
+
+	for _, s := range sizes {
+		obj := RandomJson(s)
+		objStr := obj.JsonToString()
+
+		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+		r.Destruct()
+
+		t.Run(fmt.Sprintf("json element with volume %d", s), func(subT *testing.T) {
+			assert.Equal(subT, obj, BuildWithPartialDestruct(&r))
+		})
+	}
+}
+
+func BuildWithPartialDestruct(r *Reader) JsonElement {
+	value := r.Any()
+	switch value.Kind {
+	case NumberValue:
+		return JsonNumber{Value: value.Number.Value}
+	case StringValue:
+		return JsonString("\"" + string(value.String) + "\"")
+	case BoolValue:
+		return JsonBool(value.Bool)
+	case NullValue:
+		return JsonNull{}
+	case ObjectValue:
+		jo := JsonObject{}
+		for kv := value.Object; kv.Next(); {
+			isDestructed := r.IsDestructed()
+			if !isDestructed {
+				r.Destruct()
+			}
+			jo = append(jo, JsonPair{k: string(kv.name), v: BuildWithPartialDestruct(r)})
+			if !isDestructed {
+				r.SyncWithDestruct()
+			}
+		}
+		return jo
+	case ArrayValue:
+		ja := JsonArray{}
+		for v := value.Array; v.Next(); {
+			ja = append(ja, BuildWithPartialDestruct(r))
+		}
+		return ja
+	}
+	return JsonNull{}
 }
 
 func RandomJson(volume int) JsonElement {

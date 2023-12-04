@@ -463,56 +463,24 @@ func (r *Reader) SkipValue() error {
 	}
 }
 
-type JsonStructPointer struct {
-	Pos    int
-	Values *[]JsonTreeStruct
+func (r *Reader) IsDestructed() bool {
+	return r.tr.options.lazyRead && r.tr.structBuffer.HasNext()
 }
 
-func (jPointer *JsonStructPointer) HasNext() bool {
-	return jPointer.Pos < len(*jPointer.Values)
-}
-
-func (jPointer *JsonStructPointer) Next() bool {
-	if !jPointer.HasNext() {
-		return false
+func (r *Reader) SyncWithDestruct() {
+	if r.tr.options.lazyRead {
+		r.tr.options.lazyRead = false
+		bufferSize := len(*r.tr.structBuffer.Values)
+		if bufferSize != 0 {
+			lastStruct := (*r.tr.structBuffer.Values)[bufferSize-1]
+			r.tr.pos = lastStruct.End
+		}
 	}
-	jPointer.Pos++
-	return true
-}
-
-func (jPointer *JsonStructPointer) SkipSubTree() bool {
-	if jPointer.Pos >= len(*jPointer.Values) {
-		return false
-	}
-	jPointer.Pos += (*jPointer.Values)[jPointer.Pos].SubTreeSize
-	return true
-}
-
-func (jPointer *JsonStructPointer) CurrentStruct() (JsonTreeStruct, error) {
-	if jPointer.Pos >= len(*jPointer.Values) {
-		return JsonTreeStruct{}, fmt.Errorf("no elements in structure")
-	}
-	return (*jPointer.Values)[jPointer.Pos], nil
-}
-
-func (jPointer *JsonStructPointer) ReturnBackOn(shift int) bool {
-	jPointer.Pos -= shift
-	if jPointer.Pos < 0 || jPointer.Pos >= len(*jPointer.Values) {
-		jPointer.Pos += shift
-		return false
-	}
-	return true
-}
-
-type JsonTreeStruct struct {
-	Start       int
-	End         int
-	SubTreeSize int
-	AssocValue  []byte // for key:value it is key, else nil
 }
 
 func (r *Reader) Destruct() {
 	r.tr.options.lazyParse = true
+	r.tr.options.lazyRead = false
 	cr := *r
 	*r.tr.structBuffer.Values = (*r.tr.structBuffer.Values)[:0]
 	r.tr.structBuffer.Pos = 0
@@ -564,4 +532,52 @@ func (r *Reader) typeErrorForCurrentToken(expected ValueKind, nullable bool) err
 		return err
 	}
 	return TypeError{Expected: expected, Actual: v.Kind, Offset: r.tr.LastPos(), Nullable: nullable}
+}
+
+type JsonStructPointer struct {
+	Pos    int
+	Values *[]JsonTreeStruct
+}
+
+func (jPointer *JsonStructPointer) HasNext() bool {
+	return jPointer.Pos < len(*jPointer.Values)
+}
+
+func (jPointer *JsonStructPointer) Next() bool {
+	if !jPointer.HasNext() {
+		return false
+	}
+	jPointer.Pos++
+	return true
+}
+
+func (jPointer *JsonStructPointer) SkipSubTree() bool {
+	if jPointer.Pos >= len(*jPointer.Values) {
+		return false
+	}
+	jPointer.Pos += (*jPointer.Values)[jPointer.Pos].SubTreeSize
+	return true
+}
+
+func (jPointer *JsonStructPointer) CurrentStruct() (JsonTreeStruct, error) {
+	if jPointer.Pos >= len(*jPointer.Values) {
+		return JsonTreeStruct{}, fmt.Errorf("no elements in structure")
+	}
+	return (*jPointer.Values)[jPointer.Pos], nil
+}
+
+func (jPointer *JsonStructPointer) ReturnBackOn(shift int) bool {
+	jPointer.Pos -= shift
+	if jPointer.Pos < 0 || jPointer.Pos >= len(*jPointer.Values) {
+		jPointer.Pos += shift
+		return false
+	}
+	return true
+}
+
+type JsonTreeStruct struct {
+	Start       int
+	End         int
+	SubTreeSize int
+	AssocValue  []byte // for key:value it is key, else nil
 }
