@@ -472,7 +472,7 @@ func (r *Reader) SyncWithPreProcess() {
 		r.tr.options.lazyRead = false
 		bufferSize := len(*r.tr.structBuffer.Values)
 		if bufferSize != 0 {
-			lastStruct := (*r.tr.structBuffer.Values)[bufferSize-1]
+			lastStruct := (*r.tr.structBuffer.Values)[0]
 			r.tr.pos = lastStruct.End
 		}
 	}
