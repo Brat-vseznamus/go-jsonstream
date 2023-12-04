@@ -463,11 +463,11 @@ func (r *Reader) SkipValue() error {
 	}
 }
 
-func (r *Reader) IsDestructed() bool {
+func (r *Reader) IsPreProcessed() bool {
 	return r.tr.options.lazyRead && r.tr.structBuffer.HasNext()
 }
 
-func (r *Reader) SyncWithDestruct() {
+func (r *Reader) SyncWithPreProcess() {
 	if r.tr.options.lazyRead {
 		r.tr.options.lazyRead = false
 		bufferSize := len(*r.tr.structBuffer.Values)
@@ -478,18 +478,18 @@ func (r *Reader) SyncWithDestruct() {
 	}
 }
 
-func (r *Reader) Destruct() {
+func (r *Reader) PreProcess() {
 	r.tr.options.lazyParse = true
 	r.tr.options.lazyRead = false
 	cr := *r
 	*r.tr.structBuffer.Values = (*r.tr.structBuffer.Values)[:0]
 	r.tr.structBuffer.Pos = 0
-	cr.destruct()
+	cr.preProcess()
 	r.tr.options.lazyRead = true
 	r.tr.options.lazyParse = false
 }
 
-func (r *Reader) destruct() {
+func (r *Reader) preProcess() {
 	value := r.Any()
 	tree := r.tr.structBuffer.Values
 
@@ -501,14 +501,14 @@ func (r *Reader) destruct() {
 		for kv := value.Object; kv.Next(); {
 			nextPos := len(*tree)
 			key := kv.Name()
-			r.destruct()
+			r.preProcess()
 			(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
 			(*tree)[nextPos].AssocValue = key
 		}
 	case ArrayValue:
 		for v := value.Array; v.Next(); {
 			nextPos := len(*tree)
-			r.destruct()
+			r.preProcess()
 			(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
 		}
 	}

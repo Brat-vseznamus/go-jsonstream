@@ -92,7 +92,7 @@ func TestDestructAtoms(t *testing.T) {
 		objStr := kv.v.JsonToString()
 
 		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
-		r.Destruct()
+		r.PreProcess()
 
 		t.Run(kv.k, func(subT *testing.T) {
 			assert.Equal(subT, obj, Build(&r))
@@ -128,7 +128,7 @@ func TestDestructArrays(t *testing.T) {
 		objStr := kv.v.JsonToString()
 
 		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
-		r.Destruct()
+		r.PreProcess()
 
 		t.Run(kv.k, func(subT *testing.T) {
 			assert.Equal(subT, obj, Build(&r))
@@ -178,7 +178,7 @@ func TestDestructObjects(t *testing.T) {
 		objStr := kv.v.JsonToString()
 
 		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
-		r.Destruct()
+		r.PreProcess()
 
 		t.Run(kv.k, func(subT *testing.T) {
 			assert.Equal(subT, obj, Build(&r))
@@ -197,7 +197,7 @@ func TestDestructRandom(t *testing.T) {
 		objStr := obj.JsonToString()
 
 		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
-		r.Destruct()
+		r.PreProcess()
 
 		t.Run(fmt.Sprintf("json element with volume %d", s), func(subT *testing.T) {
 			assert.Equal(subT, obj, Build(&r))
@@ -249,7 +249,7 @@ func TestPartialDestructRandom(t *testing.T) {
 		objStr := obj.JsonToString()
 
 		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
-		r.Destruct()
+		r.PreProcess()
 
 		t.Run(fmt.Sprintf("json element with volume %d", s), func(subT *testing.T) {
 			assert.Equal(subT, obj, BuildWithPartialDestruct(&r))
@@ -271,13 +271,13 @@ func BuildWithPartialDestruct(r *Reader) JsonElement {
 	case ObjectValue:
 		jo := JsonObject{}
 		for kv := value.Object; kv.Next(); {
-			isDestructed := r.IsDestructed()
-			if !isDestructed {
-				r.Destruct()
+			isPreProcessed := r.IsPreProcessed()
+			if !isPreProcessed {
+				r.PreProcess()
 			}
 			jo = append(jo, JsonPair{k: string(kv.name), v: BuildWithPartialDestruct(r)})
-			if !isDestructed {
-				r.SyncWithDestruct()
+			if !isPreProcessed {
+				r.SyncWithPreProcess()
 			}
 		}
 		return jo
