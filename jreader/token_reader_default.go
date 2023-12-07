@@ -74,25 +74,29 @@ func (t token) description() string {
 }
 
 type readerOptions struct {
-	lazyParse bool
-	lazyRead  bool
+	lazyParse     bool
+	lazyRead      bool
+	computeString bool
+	computeNumber bool // TODO
+	readKey       bool
 }
 
 type tokenReader struct {
-	data           []byte
-	pos            int
-	len            int
-	hasUnread      bool
-	unreadToken    token
-	lastPos        int
-	charBuffer     *[]byte
-	structBuffer   JsonStructPointer
-	anyValueBuffer AnyValue
-	tokenBuffer    token
-	options        readerOptions
+	data                 []byte
+	pos                  int
+	len                  int
+	hasUnread            bool
+	unreadToken          token
+	lastPos              int
+	charBuffer           *[]byte
+	structBuffer         JsonStructPointer
+	computedValuesBuffer JsonComputedValues
+	anyValueBuffer       AnyValue
+	tokenBuffer          token
+	options              readerOptions
 }
 
-func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) tokenReader {
+func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte, computedValuesBuffer JsonComputedValues) tokenReader {
 	tr := tokenReader{
 		data: data,
 		pos:  0,
@@ -101,7 +105,15 @@ func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) t
 			Pos:    0,
 			Values: buffer,
 		},
-		charBuffer: charBuffer,
+		charBuffer:           charBuffer,
+		computedValuesBuffer: computedValuesBuffer,
+	}
+	if computedValuesBuffer.StringValues != nil {
+		tr.options.computeString = true
+	}
+	if computedValuesBuffer.IntValues != nil &&
+		computedValuesBuffer.FloatValues != nil {
+		tr.options.computeNumber = true
 	}
 	return tr
 }
@@ -199,6 +211,10 @@ func (r *tokenReader) String() ([]byte, error) {
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
 func (r *tokenReader) PropertyName() ([]byte, error) {
+	r.options.readKey = true
+	defer func() {
+		r.options.readKey = false
+	}()
 	t, err := r.consumeScalar(stringToken)
 	if t == nil {
 		return nil, err
@@ -416,6 +432,9 @@ func (r *tokenReader) next() (*token, error) {
 		if r.options.lazyRead {
 			curStruct, _ := r.structBuffer.CurrentStruct()
 			sBytes := r.data[(curStruct.Start + 1):(curStruct.End - 1)]
+			if r.options.computeString && !r.options.readKey {
+				sBytes = (*r.computedValuesBuffer.StringValues)[curStruct.ComputedValueIndex]
+			}
 			r.structBuffer.Next()
 			r.tokenBuffer.kind = stringToken
 			r.tokenBuffer.stringValue = sBytes
@@ -570,10 +589,9 @@ func (r *tokenReader) readNumber(first byte) (Number, bool) { //nolint:unparam
 }
 
 func (r *tokenReader) readString() ([]byte, error) {
-	startPos := r.pos // the opening quote mark has already been read
-
+	startPos := r.pos
 	chars := r.charBuffer
-	*chars = (*chars)[:0]
+	charsStartPos := len(*chars)
 
 	haveEscaped := false
 	var reader bytes.Reader // bytes.Reader understands multi-byte characters
@@ -585,7 +603,7 @@ func (r *tokenReader) readString() ([]byte, error) {
 		if err != nil {
 			return nil, r.syntaxErrorOnLastToken(errMsgInvalidString)
 		}
-		if r.options.lazyParse {
+		if r.options.readKey || !r.options.computeString {
 			if ch == '\\' {
 				haveEscaped = !haveEscaped
 			} else if ch == '"' && !haveEscaped {
@@ -598,22 +616,8 @@ func (r *tokenReader) readString() ([]byte, error) {
 				break
 			}
 			if ch != '\\' {
-				if haveEscaped {
-					*chars = appendRune(*chars, ch)
-				}
+				*chars = appendRune(*chars, ch)
 				continue
-			}
-			if !haveEscaped {
-				pos := (r.len - reader.Len()) - 1 // don't include the backslash we just read
-				if cap(*chars) < pos-startPos+20 {
-					*chars = make([]byte, pos-startPos, pos-startPos+20)
-				} else {
-					*chars = (*chars)[0:(pos - startPos)]
-				}
-				if pos > startPos {
-					copy(*chars, r.data[startPos:pos])
-				}
-				haveEscaped = true
 			}
 			ch, _, err = reader.ReadRune()
 			if err != nil {
@@ -644,17 +648,23 @@ func (r *tokenReader) readString() ([]byte, error) {
 		}
 	}
 	r.pos = r.len - reader.Len()
-	if haveEscaped {
-		if len(*chars) == 0 {
-			return nil, nil
-		}
-		return *chars, nil
-	} else { //nolint:revive
+
+	if r.options.readKey || !r.options.computeString {
 		pos := r.pos - 1
 		if pos <= startPos {
 			return nil, nil
 		}
 		return r.data[startPos:pos], nil
+	} else {
+		charsEndPos := len(*chars)
+		if r.options.lazyParse {
+			sValues := r.computedValuesBuffer.StringValues
+			*sValues = append(*sValues, (*chars)[charsStartPos:charsEndPos])
+		}
+		if charsEndPos == charsStartPos {
+			return nil, nil
+		}
+		return (*chars)[charsStartPos:charsEndPos], nil
 	}
 }
 

@@ -59,7 +59,17 @@ var shouldNotHaveBeenNullError = errors.New("should not have been null")
 func TestReader(t *testing.T) {
 	ts := commontest.ReaderTestSuite{
 		ContextFactory: func(input []byte) commontest.TestContext {
-			r := NewReader(input)
+			buffer := make([]JsonTreeStruct, 0, 100)
+			charBuffer := make([]byte, 0, 100)
+			stringsBuffer := make([][]byte, 0, 10)
+
+			r := NewReaderWithBuffers(input, BufferConfig{
+				StructBuffer: &buffer,
+				CharsBuffer:  &charBuffer,
+				ComputedValuesBuffer: JsonComputedValues{
+					StringValues: &stringsBuffer,
+				},
+			})
 			return &readerTestContext{input: input, r: &r}
 		},
 		ValueTestFactory:     readerValueTestFactory{},

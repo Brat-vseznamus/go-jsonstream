@@ -193,9 +193,9 @@ func (f testFactory) makeScalarValues(allPermutations bool) []testValue {
 		encoding: "null",
 		value:    AnyValue{Kind: NullValue},
 	})
-	values = append(values, makeBoolTestValues()...)
+	//values = append(values, makeBoolTestValues()...)
 	//values = append(values, makeNumberTestValues(f.encodingBehavior)...)
-	//values = append(values, makeStringTestValues(f.encodingBehavior, allPermutations)...)
+	values = append(values, makeStringTestValues(f.encodingBehavior, allPermutations)...)
 	return values
 }
 

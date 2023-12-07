@@ -483,6 +483,14 @@ func (r *Reader) PreProcess() {
 	r.tr.options.lazyRead = false
 	cr := *r
 	*r.tr.structBuffer.Values = (*r.tr.structBuffer.Values)[:0]
+	*r.tr.charBuffer = (*r.tr.charBuffer)[:0]
+	if r.tr.options.computeString {
+		*r.tr.computedValuesBuffer.StringValues = (*r.tr.computedValuesBuffer.StringValues)[:0]
+	}
+	if r.tr.options.computeNumber {
+		*r.tr.computedValuesBuffer.IntValues = (*r.tr.computedValuesBuffer.IntValues)[:0]
+		*r.tr.computedValuesBuffer.FloatValues = (*r.tr.computedValuesBuffer.FloatValues)[:0]
+	}
 	r.tr.structBuffer.Pos = 0
 	cr.preProcess()
 	r.tr.options.lazyRead = true
@@ -497,6 +505,11 @@ func (r *Reader) preProcess() {
 	*tree = append(*tree, JsonTreeStruct{Start: r.tr.lastPos, SubTreeSize: 1})
 
 	switch value.Kind {
+	case StringValue:
+		if r.tr.options.computeString {
+			(*tree)[pos].ComputedValueType = StringComputed
+			(*tree)[pos].ComputedValueIndex = len(*r.tr.computedValuesBuffer.StringValues) - 1
+		}
 	case ObjectValue:
 		for kv := value.Object; kv.Next(); {
 			nextPos := len(*tree)
@@ -539,6 +552,21 @@ type JsonStructPointer struct {
 	Values *[]JsonTreeStruct
 }
 
+type JsonComputedValueType int32
+
+const (
+	NothingComputed JsonComputedValueType = iota
+	IntComputed
+	FloatComputed
+	StringComputed
+)
+
+type JsonComputedValues struct {
+	IntValues    *[]int64
+	FloatValues  *[]float64
+	StringValues *[][]byte
+}
+
 func (jPointer *JsonStructPointer) HasNext() bool {
 	return jPointer.Pos < len(*jPointer.Values)
 }
@@ -576,8 +604,10 @@ func (jPointer *JsonStructPointer) ReturnBackOn(shift int) bool {
 }
 
 type JsonTreeStruct struct {
-	Start       int
-	End         int
-	SubTreeSize int
-	AssocValue  []byte // for key:value it is key, else nil
+	Start              int
+	End                int
+	SubTreeSize        int
+	AssocValue         []byte // for key:value it is key, else nil
+	ComputedValueType  JsonComputedValueType
+	ComputedValueIndex int
 }

@@ -8,13 +8,25 @@ package jreader
 func NewReader(data []byte) Reader {
 	buffer := make([]JsonTreeStruct, 0)
 	charBuffer := make([]byte, 0)
+	computedValuesBuffer := JsonComputedValues{}
 	return Reader{
-		tr: newTokenReader(data, &buffer, &charBuffer),
+		tr: newTokenReader(data, &buffer, &charBuffer, computedValuesBuffer),
 	}
 }
 
-func NewReaderWithBuffers(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte) Reader {
+func NewReaderWithBuffers(data []byte, bufferConfig BufferConfig) Reader {
 	return Reader{
-		tr: newTokenReader(data, buffer, charBuffer),
+		tr: newTokenReader(
+			data,
+			bufferConfig.StructBuffer,
+			bufferConfig.CharsBuffer,
+			bufferConfig.ComputedValuesBuffer,
+		),
 	}
+}
+
+type BufferConfig struct {
+	StructBuffer         *[]JsonTreeStruct
+	CharsBuffer          *[]byte
+	ComputedValuesBuffer JsonComputedValues
 }

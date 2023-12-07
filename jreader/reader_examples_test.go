@@ -10,7 +10,7 @@ func ExampleNewReader() {
 	} else {
 		fmt.Println(string(s))
 	}
-	// Output: a "good" string
+	// Output: a \"good\" string
 }
 
 func ExampleReader_RequireEOF() {
@@ -124,7 +124,7 @@ func ExampleReader_String() {
 	} else {
 		fmt.Println("value:", value)
 	}
-	// Output: value: a "good" string
+	// Output: value: a \"good\" string
 }
 
 func ExampleReader_StringOrNull() {

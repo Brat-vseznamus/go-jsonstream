@@ -29,7 +29,7 @@ func TestTokenReader(t *testing.T) {
 		Factory: func(input []byte) *tokenReader {
 			buffer := make([]JsonTreeStruct, 0)
 			charBuffer := make([]byte, 0)
-			tr := newTokenReader(input, &buffer, &charBuffer)
+			tr := newTokenReader(input, &buffer, &charBuffer, JsonComputedValues{})
 			return &tr
 		},
 	}

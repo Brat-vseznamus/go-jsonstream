@@ -64,6 +64,72 @@ func (j JsonObject) JsonToString() string {
 	return s
 }
 
+func TestDestructStrings(t *testing.T) {
+	buffer := make([]JsonTreeStruct, 0, 100)
+	charBuffer := make([]byte, 0, 100)
+	stringsBuffer := make([][]byte, 0, 10)
+
+	type TestValuesData struct {
+		testName       string
+		computeStrings bool
+		input          JsonElement
+		expectedOutput JsonElement
+	}
+
+	values := []TestValuesData{
+		{
+			testName:       "strings should not computed, and there are no escaping",
+			computeStrings: false,
+			input:          JsonString("\"abc\""),
+			expectedOutput: JsonString("\"abc\""),
+		},
+		{
+			testName:       "strings should not computed, and there are some escaping",
+			computeStrings: false,
+			input:          JsonString("\"\\nabc\""),
+			expectedOutput: JsonString("\"\\nabc\""),
+		},
+		{
+			testName:       "strings must be computed, and there are no escaping",
+			computeStrings: true,
+			input:          JsonString("\"abc\""),
+			expectedOutput: JsonString("\"abc\""),
+		},
+		{
+			testName:       "strings must be computed, and there are some escaping",
+			computeStrings: true,
+			input:          JsonString("\"\\n\\t\\u00bfabc\""),
+			expectedOutput: JsonString("\"\n\t¿abc\""),
+		},
+	}
+
+	for _, testValuesData := range values {
+		obj := testValuesData.input
+		objStr := obj.JsonToString()
+
+		r := NewReaderWithBuffers([]byte(objStr), BufferConfig{
+			StructBuffer: &buffer,
+			CharsBuffer:  &charBuffer,
+		})
+
+		if testValuesData.computeStrings {
+			r = NewReaderWithBuffers([]byte(objStr), BufferConfig{
+				StructBuffer: &buffer,
+				CharsBuffer:  &charBuffer,
+				ComputedValuesBuffer: JsonComputedValues{
+					StringValues: &stringsBuffer,
+				},
+			})
+		}
+
+		r.PreProcess()
+
+		t.Run(testValuesData.testName, func(subT *testing.T) {
+			assert.Equal(subT, testValuesData.expectedOutput, Build(&r))
+		})
+	}
+}
+
 func TestDestructAtoms(t *testing.T) {
 	buffer := make([]JsonTreeStruct, 0, 100)
 	charBuffer := make([]byte, 0, 100)
@@ -91,7 +157,11 @@ func TestDestructAtoms(t *testing.T) {
 		obj := kv.v
 		objStr := kv.v.JsonToString()
 
-		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+		r := NewReaderWithBuffers([]byte(objStr), BufferConfig{
+			StructBuffer: &buffer,
+			CharsBuffer:  &charBuffer,
+		})
+
 		r.PreProcess()
 
 		t.Run(kv.k, func(subT *testing.T) {
@@ -127,7 +197,10 @@ func TestDestructArrays(t *testing.T) {
 		obj := kv.v
 		objStr := kv.v.JsonToString()
 
-		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+		r := NewReaderWithBuffers([]byte(objStr), BufferConfig{
+			StructBuffer: &buffer,
+			CharsBuffer:  &charBuffer,
+		})
 		r.PreProcess()
 
 		t.Run(kv.k, func(subT *testing.T) {
@@ -139,6 +212,7 @@ func TestDestructArrays(t *testing.T) {
 func TestDestructObjects(t *testing.T) {
 	buffer := make([]JsonTreeStruct, 0, 100)
 	charBuffer := make([]byte, 0, 100)
+	//stringsBuffer := make([][]byte, 0, 100)
 
 	values := []JsonPair{
 		{
@@ -177,11 +251,15 @@ func TestDestructObjects(t *testing.T) {
 		obj := kv.v
 		objStr := kv.v.JsonToString()
 
-		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+		r := NewReaderWithBuffers([]byte(objStr), BufferConfig{
+			StructBuffer: &buffer,
+			CharsBuffer:  &charBuffer,
+		})
 		r.PreProcess()
 
 		t.Run(kv.k, func(subT *testing.T) {
-			assert.Equal(subT, obj, Build(&r))
+			buildResult := Build(&r)
+			assert.Equal(subT, obj, buildResult)
 		})
 	}
 }
@@ -196,7 +274,10 @@ func TestDestructRandom(t *testing.T) {
 		obj := RandomJson(s)
 		objStr := obj.JsonToString()
 
-		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+		r := NewReaderWithBuffers([]byte(objStr), BufferConfig{
+			StructBuffer: &buffer,
+			CharsBuffer:  &charBuffer,
+		})
 		r.PreProcess()
 
 		t.Run(fmt.Sprintf("json element with volume %d", s), func(subT *testing.T) {
@@ -232,7 +313,10 @@ func TestPartialDestruct(t *testing.T) {
 	}
 	objStr := obj.JsonToString()
 
-	r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+	r := NewReaderWithBuffers([]byte(objStr), BufferConfig{
+		StructBuffer: &buffer,
+		CharsBuffer:  &charBuffer,
+	})
 
 	je := BuildWithPartialDestruct(&r)
 	assert.Equal(t, obj, je)
@@ -248,7 +332,10 @@ func TestPartialDestructRandom(t *testing.T) {
 		obj := RandomJson(s)
 		objStr := obj.JsonToString()
 
-		r := NewReaderWithBuffers([]byte(objStr), &buffer, &charBuffer)
+		r := NewReaderWithBuffers([]byte(objStr), BufferConfig{
+			StructBuffer: &buffer,
+			CharsBuffer:  &charBuffer,
+		})
 		r.PreProcess()
 
 		t.Run(fmt.Sprintf("json element with volume %d", s), func(subT *testing.T) {

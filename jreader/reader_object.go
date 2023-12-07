@@ -135,7 +135,9 @@ func (obj *ObjectState) Next() bool {
 			isEnd, err = obj.r.tr.EndDelimiterOrComma('}')
 		} else {
 			obj.afterFirst = true
+			obj.r.tr.options.readKey = true
 			isEnd, err = obj.r.tr.Delimiter('}')
+			obj.r.tr.options.readKey = false
 		}
 		if err != nil {
 			obj.r.AddError(err)
