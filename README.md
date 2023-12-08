@@ -1,7 +1,3 @@
-# DISCLAIMER
-
-This repository is a fork from [launchdarkly/go-jsonstream](https://github.com/launchdarkly/go-jsonstream) and all changes are developed for self purposes, not for commercial.
-
 # LaunchDarkly Streaming JSON for Go
 
 [![Circle CI](https://circleci.com/gh/launchdarkly/go-jsonstream.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-jsonstream) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/gopkg.in/launchdarkly/go-jsonstream.v1)
