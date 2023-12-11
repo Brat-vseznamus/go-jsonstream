@@ -8,7 +8,7 @@ import (
 
 type ExampleStruct struct {
 	StringField             string      `json:"string"`
-	IntField                int         `json:"int"`
+	IntField                int64       `json:"int"`
 	OptBoolAsInterfaceField interface{} `json:"optBool"`
 }
 
@@ -73,7 +73,7 @@ func MakeStructs() []ExampleStruct {
 	for i := 0; i < 100; i++ {
 		ret = append(ret, ExampleStruct{
 			StringField:             fmt.Sprintf("string%d", i),
-			IntField:                i * 10,
+			IntField:                int64(i * 10),
 			OptBoolAsInterfaceField: i%2 == 1,
 		})
 	}

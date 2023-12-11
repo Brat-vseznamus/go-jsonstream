@@ -15,7 +15,7 @@
 //	    // reading a JSON object structure like {"value":2}
 //	    for obj := r.Object(); obj.Next; {
 //	        if string(obj.Name()) == "value" {
-//	            s.value = r.Int()
+//	            s.value = r.Int64()
 //	        }
 //	    }
 //	}

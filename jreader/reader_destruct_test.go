@@ -7,63 +7,6 @@ import (
 	"testing"
 )
 
-type JsonElement interface {
-	JsonToString() string
-}
-
-type JsonString string
-type JsonNumber Number
-type JsonBool bool
-type JsonNull struct{}
-type JsonArray []JsonElement
-
-type JsonPair struct {
-	k string
-	v JsonElement
-}
-
-type JsonObject []JsonPair
-
-func (j JsonString) JsonToString() string {
-	return string(j)
-}
-
-func (j JsonNumber) JsonToString() string {
-	return string(j.Value)
-}
-
-func (j JsonBool) JsonToString() string {
-	return fmt.Sprintf("%t", bool(j))
-}
-
-func (j JsonNull) JsonToString() string {
-	return "null"
-}
-
-func (j JsonArray) JsonToString() string {
-	s := "["
-	for i, v := range j {
-		if i != 0 {
-			s += ","
-		}
-		s += v.JsonToString()
-	}
-	s += "]"
-	return s
-}
-
-func (j JsonObject) JsonToString() string {
-	s := "{"
-	for i, v := range j {
-		if i != 0 {
-			s += ","
-		}
-		s += fmt.Sprintf(`"%s": %s`, v.k, v.v.JsonToString())
-	}
-	s += "}"
-	return s
-}
-
 func TestDestructStrings(t *testing.T) {
 	buffer := make([]JsonTreeStruct, 0, 100)
 	charBuffer := make([]byte, 0, 100)
@@ -145,7 +88,7 @@ func TestDestructAtoms(t *testing.T) {
 		},
 		{
 			k: "number",
-			v: JsonNumber{Value: []byte("123.4")},
+			v: JsonNumber("123.4"),
 		},
 		{
 			k: "bool",
@@ -181,14 +124,14 @@ func TestDestructArrays(t *testing.T) {
 		},
 		{
 			k: "single value array",
-			v: JsonArray{JsonNumber{Value: []byte("123.4")}},
+			v: JsonArray{JsonNumber("123.4")},
 		},
 		{
 			k: "multiple values array",
 			v: JsonArray{
-				JsonNumber{Value: []byte("123.4")},
+				JsonNumber("123.4"),
 				JsonString("\"234.5\""),
-				JsonNumber{Value: []byte("345.6")},
+				JsonNumber("345.6"),
 			},
 		},
 	}
@@ -224,7 +167,7 @@ func TestDestructObjects(t *testing.T) {
 			v: JsonObject{
 				JsonPair{
 					k: "1",
-					v: JsonNumber{Value: []byte("123.4")},
+					v: JsonNumber([]byte("123.4")),
 				},
 			},
 		},
@@ -233,15 +176,15 @@ func TestDestructObjects(t *testing.T) {
 			v: JsonObject{
 				JsonPair{
 					k: "1",
-					v: JsonNumber{Value: []byte("123.4")},
+					v: JsonNumber([]byte("123.4")),
 				},
 				JsonPair{
 					k: "2",
-					v: JsonNumber{Value: []byte("123.45")},
+					v: JsonNumber([]byte("123.45")),
 				},
 				JsonPair{
 					k: "3",
-					v: JsonNumber{Value: []byte("123.456")},
+					v: JsonNumber([]byte("123.456")),
 				},
 			},
 		},
@@ -293,7 +236,7 @@ func TestPartialDestruct(t *testing.T) {
 	obj := JsonObject{
 		JsonPair{
 			k: "f1",
-			v: JsonNumber{Value: []byte("222")},
+			v: JsonNumber([]byte("222")),
 		},
 		JsonPair{
 			k: "f2",
@@ -336,7 +279,6 @@ func TestPartialDestructRandom(t *testing.T) {
 			StructBuffer: &buffer,
 			CharsBuffer:  &charBuffer,
 		})
-		r.PreProcess()
 
 		t.Run(fmt.Sprintf("json element with volume %d", s), func(subT *testing.T) {
 			assert.Equal(subT, obj, BuildWithPartialDestruct(&r))
@@ -348,7 +290,7 @@ func BuildWithPartialDestruct(r *Reader) JsonElement {
 	value := r.Any()
 	switch value.Kind {
 	case NumberValue:
-		return JsonNumber{Value: value.Number.Value}
+		return JsonNumber(value.Number.raw)
 	case StringValue:
 		return JsonString("\"" + string(value.String) + "\"")
 	case BoolValue:
@@ -392,7 +334,7 @@ func RandomJson(volume int) JsonElement {
 		case 0:
 			return JsonBool(rand.Int()%2 == 0)
 		case 1:
-			return JsonNumber{Value: []byte(fmt.Sprintf("%d", rand.Int()%1000000))}
+			return JsonNumber([]byte(fmt.Sprintf("%d", rand.Int()%1000000)))
 		case 2:
 			return JsonString(fmt.Sprintf("\"s%d\"", rand.Int()%1000000))
 		case 3:
@@ -425,7 +367,7 @@ func Build(r *Reader) JsonElement {
 	value := r.Any()
 	switch value.Kind {
 	case NumberValue:
-		return JsonNumber{Value: value.Number.Value}
+		return JsonNumber(value.Number.raw)
 	case StringValue:
 		return JsonString("\"" + string(value.String) + "\"")
 	case BoolValue:
@@ -446,4 +388,61 @@ func Build(r *Reader) JsonElement {
 		return ja
 	}
 	return JsonNull{}
+}
+
+type JsonElement interface {
+	JsonToString() string
+}
+
+type JsonString string
+type JsonNumber []byte
+type JsonBool bool
+type JsonNull struct{}
+type JsonArray []JsonElement
+
+type JsonPair struct {
+	k string
+	v JsonElement
+}
+
+type JsonObject []JsonPair
+
+func (j JsonString) JsonToString() string {
+	return string(j)
+}
+
+func (j JsonNumber) JsonToString() string {
+	return string(j)
+}
+
+func (j JsonBool) JsonToString() string {
+	return fmt.Sprintf("%t", bool(j))
+}
+
+func (j JsonNull) JsonToString() string {
+	return "null"
+}
+
+func (j JsonArray) JsonToString() string {
+	s := "["
+	for i, v := range j {
+		if i != 0 {
+			s += ","
+		}
+		s += v.JsonToString()
+	}
+	s += "]"
+	return s
+}
+
+func (j JsonObject) JsonToString() string {
+	s := "{"
+	for i, v := range j {
+		if i != 0 {
+			s += ","
+		}
+		s += fmt.Sprintf(`"%s": %s`, v.k, v.v.JsonToString())
+	}
+	s += "}"
+	return s
 }

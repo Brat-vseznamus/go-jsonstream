@@ -95,8 +95,7 @@ func (f tokenReaderValueTestFactory) Value(value commontest.AnyValue, variant co
 		case commontest.NumberValue:
 			gotVal, err := tr.Number()
 			return commontest.AssertNoErrors(err,
-				commontest.AssertEqual(value.Number.Value, gotVal.Value),
-				commontest.AssertEqual(int(value.Number.Kind), int(gotVal.Kind)))
+				commontest.AssertEqual(value.Number.Value, gotVal.raw))
 
 		case commontest.StringValue:
 			gotVal, err := tr.String()

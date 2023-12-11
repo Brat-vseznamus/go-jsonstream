@@ -13,7 +13,7 @@ func (s *ExampleStructWrapper) ReadFromJSONReader(r *Reader) {
 		case commontest.ExampleStructStringFieldName:
 			s.StringField = string(r.String())
 		case commontest.ExampleStructIntFieldName:
-			s.IntField = r.Int()
+			s.IntField = r.Int64()
 		case commontest.ExampleStructOptBoolAsInterfaceFieldName:
 			b, nonNull := r.BoolOrNull()
 			if nonNull {

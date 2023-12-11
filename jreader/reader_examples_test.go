@@ -15,7 +15,7 @@ func ExampleNewReader() {
 
 func ExampleReader_RequireEOF() {
 	r := NewReader([]byte(`100,"extra"`))
-	n := r.Int()
+	n := r.Int64()
 	err := r.RequireEOF()
 	fmt.Println(n, err)
 	// Output: 100 unexpected data after end of JSON value at position 3
@@ -23,9 +23,9 @@ func ExampleReader_RequireEOF() {
 
 func ExampleReader_AddError() {
 	r := NewReader([]byte(`[1,2,3,4,5]`))
-	values := []int{}
+	values := []int64{}
 	for arr := r.Array(); arr.Next(); {
-		n := r.Int()
+		n := r.Int64()
 		values = append(values, n)
 		if n > 1 {
 			r.AddError(fmt.Errorf("got an error after %d", n))
@@ -70,9 +70,9 @@ func ExampleReader_BoolOrNull() {
 	// Output: value2: false
 }
 
-func ExampleReader_Int() {
+func ExampleReader_Int64() {
 	r := NewReader([]byte(`123`))
-	var value int = r.Int()
+	var value = r.Int64()
 	if err := r.Error(); err != nil {
 		fmt.Println("error:", err)
 	} else {
@@ -81,13 +81,13 @@ func ExampleReader_Int() {
 	// Output: value: 123
 }
 
-func ExampleReader_IntOrNull() {
+func ExampleReader_Int64OrNull() {
 	r1 := NewReader([]byte(`null`))
-	if value1, nonNull := r1.IntOrNull(); nonNull {
+	if value1, nonNull := r1.Int64OrNull(); nonNull {
 		fmt.Println("value1:", value1)
 	}
 	r2 := NewReader([]byte(`0`))
-	if value2, nonNull := r2.IntOrNull(); nonNull {
+	if value2, nonNull := r2.Int64OrNull(); nonNull {
 		fmt.Println("value2:", value2)
 	}
 	// Output: value2: 0
@@ -141,9 +141,9 @@ func ExampleReader_StringOrNull() {
 
 func ExampleReader_Array() {
 	r := NewReader([]byte(`[1,2]`))
-	values := []int{}
+	values := []int64{}
 	for arr := r.Array(); arr.Next(); {
-		values = append(values, r.Int())
+		values = append(values, r.Int64())
 	}
 	fmt.Println("values:", values)
 	// Output: values: [1 2]
@@ -152,10 +152,10 @@ func ExampleReader_Array() {
 func ExampleReader_ArrayOrNull() {
 	printArray := func(input string) {
 		r := NewReader([]byte(input))
-		values := []int{}
+		values := []int64{}
 		arr := r.Array()
 		for arr.Next() {
-			values = append(values, r.Int())
+			values = append(values, r.Int64())
 		}
 		fmt.Println(input, "->", values, "... IsDefined =", arr.IsDefined())
 	}
@@ -170,7 +170,7 @@ func ExampleReader_Object() {
 	items := []string{}
 	for obj := r.Object(); obj.Next(); {
 		name := obj.Name()
-		value := r.Int()
+		value := r.Int64()
 		items = append(items, fmt.Sprintf("%s=%d", name, value))
 	}
 	fmt.Println("items:", items)
@@ -184,7 +184,7 @@ func ExampleReader_ObjectOrNull() {
 		obj := r.Object()
 		for obj.Next() {
 			name := obj.Name()
-			value := r.Int()
+			value := r.Int64()
 			items = append(items, fmt.Sprintf("%s=%d", name, value))
 		}
 		fmt.Println(input, "->", items, "... IsDefined =", obj.IsDefined())
@@ -205,7 +205,7 @@ func ExampleReader_Any() {
 		case BoolValue:
 			fmt.Println("a bool:", value.Bool)
 		case NumberValue:
-			fmt.Println("a number:", string(value.Number.Value))
+			fmt.Println("a number:", string(value.Number.raw))
 		case StringValue:
 			fmt.Println("a string:", value.String)
 		case ArrayValue:

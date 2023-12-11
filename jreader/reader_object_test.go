@@ -12,7 +12,7 @@ func TestAddErrorStopsObjectParsing(t *testing.T) {
 	obj := r.Object()
 	require.True(t, obj.Next())
 	require.Equal(t, "a", string(obj.Name()))
-	require.Equal(t, 1, r.Int())
+	require.Equal(t, 1, r.Int64())
 
 	err := errors.New("sorry")
 	r.AddError(err)
@@ -27,10 +27,10 @@ func TestSyntaxErrorStopsObjectParsing(t *testing.T) {
 	obj := r.Object()
 	require.True(t, obj.Next())
 	require.Equal(t, "a", string(obj.Name()))
-	require.Equal(t, 1, r.Int())
+	require.Equal(t, 1, r.Int64())
 
 	require.False(t, obj.Next())
-	require.Equal(t, 0, r.Int())
+	require.Equal(t, 0, r.Int64())
 
 	require.Error(t, r.Error())
 

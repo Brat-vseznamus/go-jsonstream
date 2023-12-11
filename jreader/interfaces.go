@@ -9,7 +9,7 @@ type AnyValue struct {
 	Bool bool
 
 	// Number is the value if the JSON value is a number, or zero otherwise.
-	Number Number
+	Number NumberProps
 
 	// String is the value if the JSON value is a string, or an empty string otherwise.
 	String []byte

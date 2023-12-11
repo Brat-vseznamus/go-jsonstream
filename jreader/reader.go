@@ -2,6 +2,7 @@ package jreader
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -115,43 +116,108 @@ func (r *Reader) BoolOrNull() (value bool, nonNull bool) {
 	return val, true
 }
 
-func (r *Reader) Number() Number {
+func (r *Reader) Number() []byte {
 	r.awaitingReadValue = false
 	if r.err != nil {
-		return Number{}
+		return nil
 	}
 	val, err := r.tr.Number()
 	if err != nil {
 		r.err = err
-		return Number{}
+		return nil
 	}
-	return val
+	return val.raw
 }
 
-func (r *Reader) NumberOrNull() (Number, bool) {
+func (r *Reader) NumberOrNull() ([]byte, bool) {
 	r.awaitingReadValue = false
 	if r.err != nil {
-		return Number{}, false
+		return nil, false
 	}
 	isNull, err := r.tr.Null()
 	if isNull || err != nil {
 		r.err = err
-		return Number{}, false
+		return nil, false
 	}
 	val, err := r.tr.Number()
 	if err != nil {
 		r.err = typeErrorForNullableValue(err)
-		return Number{}, false
+		return nil, false
 	}
-	return val, true
+	return val.raw, true
 }
 
-// Int attempts to read a numeric value and returns it as an int.
+func (r *Reader) UInt64() uint64 {
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return 0
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = err
+		return 0
+	}
+	if val.trunc || r.IsNumbersRaw() {
+		result, _ := strconv.ParseUint(string(val.raw), 10, 64)
+		return result
+	}
+	//if r.tr.options.computeNumber {
+	if val.isFloat {
+		r.err = fmt.Errorf("number is not a uint, because it is a float")
+		return 0
+	}
+	if val.isNegative {
+		r.err = fmt.Errorf("number is not a uint, because it is an int")
+		return 0
+	}
+	return val.mantissa
+	//} else {
+	//	result, _ := strconv.ParseUint(string(val.raw), 10, 64)
+	//	return result
+	//}
+}
+
+func (r *Reader) UInt64OrNull() (uint64, bool) {
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return 0, false
+	}
+	isNull, err := r.tr.Null()
+	if isNull || err != nil {
+		r.err = err
+		return 0, false
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = typeErrorForNullableValue(err)
+		return 0, false
+	}
+	if val.trunc || r.IsNumbersRaw() {
+		result, err := strconv.ParseUint(string(val.raw), 10, 64)
+		return result, err == nil
+	}
+	//if r.tr.options.computeNumber {
+	if val.isFloat {
+		r.err = fmt.Errorf("number is not a uint, because it is a float")
+		return 0, false
+	}
+	if val.isNegative {
+		r.err = fmt.Errorf("number is not a uint, because it is an int")
+		return 0, false
+	}
+	return val.mantissa, true
+	//} else {
+	//	result, err := strconv.ParseUint(string(val.raw), 10, 64)
+	//	return result, err == nil
+	//}
+}
+
+// Int64 attempts to read a numeric value and returns it as an int.
 //
 // If there is a parsing error, or the next value is not a number, the return value is zero and
 // the Reader enters a failed state, which you can detect with Error(). Non-numeric types are never
 // converted to numbers.
-func (r *Reader) Int() int {
+func (r *Reader) Int64() int64 {
 	r.awaitingReadValue = false
 	if r.err != nil {
 		return 0
@@ -161,16 +227,45 @@ func (r *Reader) Int() int {
 		r.err = err
 		return 0
 	}
-	result, _ := strconv.ParseInt(string(val.Value), 10, 64)
-	return int(result)
+	if val.trunc || r.IsNumbersRaw() {
+		result, _ := strconv.ParseInt(string(val.raw), 10, 64)
+		return result
+	}
+	//if r.tr.options.computeNumber {
+	if val.isFloat {
+		r.err = fmt.Errorf("number is not a int, because it is a float")
+		return 0
+	}
+	overflow := false
+	if val.isNegative {
+		overflow = val.mantissa > math.MaxInt64+1
+	} else {
+		overflow = val.mantissa > math.MaxInt64
+	}
+	if overflow {
+		r.err = fmt.Errorf("int under or over-flow")
+		return 0
+	}
+	if val.isNegative {
+		if val.mantissa == math.MaxInt64+1 {
+			return math.MinInt64
+		}
+		return -int64(val.mantissa)
+	} else {
+		return int64(val.mantissa)
+	}
+	//} else {
+	//	result, _ := strconv.ParseInt(string(val.raw), 10, 64)
+	//	return result
+	//}
 }
 
-// IntOrNull attempts to read either an integer numeric value or a null. In the case of a number, the
+// Int64OrNull attempts to read either an integer numeric value or a null. In the case of a number, the
 // return values are (value, true); for a null, they are (0, false).
 //
 // If there is a parsing error, or the next value is neither a number nor a null, the return values
 // are (0, false) and the Reader enters a failed state, which you can detect with Error().
-func (r *Reader) IntOrNull() (int, bool) {
+func (r *Reader) Int64OrNull() (int64, bool) {
 	r.awaitingReadValue = false
 	if r.err != nil {
 		return 0, false
@@ -185,8 +280,34 @@ func (r *Reader) IntOrNull() (int, bool) {
 		r.err = typeErrorForNullableValue(err)
 		return 0, false
 	}
-	result, err := strconv.ParseInt(string(val.Value), 10, 64)
-	return int(result), err == nil
+	if val.trunc || r.IsNumbersRaw() {
+		result, err := strconv.ParseInt(string(val.raw), 10, 64)
+		return result, err == nil
+	}
+	//if r.tr.options.computeNumber {
+	if val.isFloat {
+		r.err = fmt.Errorf("number is not a int, because it is a float")
+		return 0, false
+	}
+	overflow := false
+	if val.isNegative {
+		overflow = val.mantissa > math.MaxInt64+1
+	} else {
+		overflow = val.mantissa > math.MaxInt64
+	}
+	if overflow {
+		r.err = fmt.Errorf("int under or over-flow")
+		return 0, false
+	}
+	if val.isNegative {
+		return -int64(val.mantissa), true
+	} else {
+		return int64(val.mantissa), true
+	}
+	//} else {
+	//	result, err := strconv.ParseInt(string(val.raw), 10, 64)
+	//	return result, err == nil
+	//}
 }
 
 // Float64 attempts to read a numeric value and returns it as a float64.
@@ -204,8 +325,16 @@ func (r *Reader) Float64() float64 {
 		r.err = err
 		return 0
 	}
-	result, _ := strconv.ParseFloat(string(val.Value), 64)
-	return result
+	if r.IsNumbersRaw() {
+		result, _ := strconv.ParseFloat(string(val.raw), 64)
+		return result
+	}
+	f, _, err := r.tr.readFloat(val)
+	if err != nil {
+		r.err = err
+		return 0
+	}
+	return f
 }
 
 // Float64OrNull attempts to read either a numeric value or a null. In the case of a number, the
@@ -228,8 +357,21 @@ func (r *Reader) Float64OrNull() (float64, bool) {
 		r.err = typeErrorForNullableValue(err)
 		return 0, false
 	}
-	result, err := strconv.ParseFloat(string(val.Value), 64)
-	return result, err == nil
+	if r.IsNumbersRaw() {
+		result, err := strconv.ParseFloat(string(val.raw), 64)
+		return result, err == nil
+	}
+	//if r.tr.options.computeNumber {
+	f, _, err := r.tr.readFloat(val)
+	if err != nil {
+		r.err = err
+		return 0, false
+	}
+	return f, true
+	//} else {
+	//	result, err := strconv.ParseFloat(string(val.raw), 64)
+	//	return result, err == nil
+	//}
 }
 
 // String attempts to read a string value.
@@ -467,6 +609,10 @@ func (r *Reader) IsPreProcessed() bool {
 	return r.tr.options.lazyRead && r.tr.structBuffer.HasNext()
 }
 
+func (r *Reader) IsNumbersRaw() bool {
+	return r.tr.options.lazyRead && !r.tr.options.computeNumber
+}
+
 func (r *Reader) SyncWithPreProcess() {
 	if r.tr.options.lazyRead {
 		r.tr.options.lazyRead = false
@@ -488,8 +634,7 @@ func (r *Reader) PreProcess() {
 		*r.tr.computedValuesBuffer.StringValues = (*r.tr.computedValuesBuffer.StringValues)[:0]
 	}
 	if r.tr.options.computeNumber {
-		*r.tr.computedValuesBuffer.IntValues = (*r.tr.computedValuesBuffer.IntValues)[:0]
-		*r.tr.computedValuesBuffer.FloatValues = (*r.tr.computedValuesBuffer.FloatValues)[:0]
+		*r.tr.computedValuesBuffer.NumberValues = (*r.tr.computedValuesBuffer.NumberValues)[:0]
 	}
 	r.tr.structBuffer.Pos = 0
 	cr.preProcess()
@@ -499,12 +644,23 @@ func (r *Reader) PreProcess() {
 
 func (r *Reader) preProcess() {
 	value := r.Any()
+
+	if value == nil {
+		r.err = fmt.Errorf("can't parse value")
+		return
+	}
+
 	tree := r.tr.structBuffer.Values
 
 	pos := len(*tree)
 	*tree = append(*tree, JsonTreeStruct{Start: r.tr.lastPos, SubTreeSize: 1})
 
 	switch value.Kind {
+	case NumberValue:
+		if r.tr.options.computeNumber {
+			(*tree)[pos].ComputedValueType = NumberComputed
+			(*tree)[pos].ComputedValueIndex = len(*r.tr.computedValuesBuffer.NumberValues) - 1
+		}
 	case StringValue:
 		if r.tr.options.computeString {
 			(*tree)[pos].ComputedValueType = StringComputed
@@ -556,14 +712,12 @@ type JsonComputedValueType int32
 
 const (
 	NothingComputed JsonComputedValueType = iota
-	IntComputed
-	FloatComputed
+	NumberComputed
 	StringComputed
 )
 
 type JsonComputedValues struct {
-	IntValues    *[]int64
-	FloatValues  *[]float64
+	NumberValues *[]NumberProps
 	StringValues *[][]byte
 }
 

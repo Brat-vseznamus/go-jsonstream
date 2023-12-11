@@ -24,22 +24,10 @@ var (
 	tokenFalse = []byte("false") //nolint:gochecknoglobals
 )
 
-type NumberKind int
-
-const (
-	NumberInt = iota
-	NumberFloat
-)
-
-type Number struct {
-	Value []byte
-	Kind  NumberKind
-}
-
 type token struct {
 	kind        tokenKind
 	boolValue   bool
-	numberValue Number
+	numberValue NumberProps
 	stringValue []byte
 	delimiter   byte
 }
@@ -111,8 +99,7 @@ func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte, c
 	if computedValuesBuffer.StringValues != nil {
 		tr.options.computeString = true
 	}
-	if computedValuesBuffer.IntValues != nil &&
-		computedValuesBuffer.FloatValues != nil {
+	if computedValuesBuffer.NumberValues != nil {
 		tr.options.computeNumber = true
 	}
 	return tr
@@ -182,12 +169,12 @@ func (r *tokenReader) Bool() (bool, error) {
 // the token), or an error if the next token is anything other than a JSON number.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
-func (r *tokenReader) Number() (Number, error) {
+func (r *tokenReader) Number() (*NumberProps, error) {
 	t, err := r.consumeScalar(numberToken)
 	if t == nil {
-		return Number{}, err
+		return nil, err
 	}
-	return t.numberValue, err
+	return &t.numberValue, err
 }
 
 // String requires that the next token is a JSON string, returning its Value if successful (consuming
@@ -415,10 +402,14 @@ func (r *tokenReader) next() (*token, error) {
 	case (b >= '0' && b <= '9') || b == '-':
 		if r.options.lazyRead {
 			curStruct, _ := r.structBuffer.CurrentStruct()
-			nBytes := r.data[curStruct.Start:curStruct.End]
+			if r.options.computeNumber {
+				r.tokenBuffer.numberValue = (*r.computedValuesBuffer.NumberValues)[curStruct.ComputedValueIndex]
+			} else {
+				nBytes := r.data[curStruct.Start:curStruct.End]
+				r.tokenBuffer.numberValue = NumberProps{raw: nBytes}
+			}
 			r.structBuffer.Next()
 			r.tokenBuffer.kind = numberToken
-			r.tokenBuffer.numberValue = Number{Value: nBytes}
 			return &r.tokenBuffer, nil
 		} else {
 			if n, ok := r.readNumber(b); ok {
@@ -527,65 +518,13 @@ func (r *tokenReader) consumeASCIILowercaseAlphabeticChars() int {
 	return n
 }
 
-func (r *tokenReader) readNumber(first byte) (Number, bool) { //nolint:unparam
-	startPos := r.lastPos
-	isFloat := false
-	var ch byte
-	var ok bool
-	for {
-		ch, ok = r.readByte()
-		if !ok {
-			break
-		}
-		if (ch < '0' || ch > '9') && !(ch == '.' && !isFloat) {
-			break
-		}
-		if ch == '.' {
-			isFloat = true
-		}
+func (r *tokenReader) readNumber(first byte) (result NumberProps, ok bool) { //nolint:unparam
+	ok = r.readNumberProps(first, &result)
+	if ok && r.options.lazyParse && r.options.computeNumber {
+		nValues := r.computedValuesBuffer.NumberValues
+		*nValues = append(*nValues, result)
 	}
-	hasExponent := false
-	if ch == 'e' || ch == 'E' {
-		// exponent must match this regex: [eE][-+]?[0-9]+
-		ch, ok = r.readByte()
-		if !ok {
-			return Number{}, false
-		}
-		if ch == '+' || ch == '-' { //nolint:gocritic
-		} else if ch >= '0' && ch <= '9' {
-			r.unreadByte()
-		} else {
-			return Number{}, false
-		}
-		for {
-			ch, ok = r.readByte()
-			if !ok {
-				break
-			}
-			if ch < '0' || ch > '9' {
-				r.unreadByte()
-				break
-			}
-			hasExponent = true
-		}
-		if !hasExponent {
-			return Number{}, false
-		}
-		isFloat = true
-	} else { //nolint:gocritic
-		if ok {
-			r.unreadByte()
-		}
-	}
-	chars := r.data[startPos:r.pos]
-	if isFloat {
-		// Unfortunately, strconv.ParseFloat requires a string - there is no []byte equivalent. This means we can't
-		// avoid a heap allocation here. Easyjson works around this by creating an unsafe string that points directly
-		// at the existing bytes, but in our default implementation we can't use unsafe.
-		return Number{Value: chars, Kind: NumberFloat}, true
-	} else { //nolint:revive
-		return Number{Value: chars, Kind: NumberInt}, true
-	}
+	return
 }
 
 func (r *tokenReader) readString() ([]byte, error) {
@@ -691,31 +630,6 @@ func (r *tokenReader) syntaxErrorOnNextToken(msg string) error {
 		return err
 	}
 	return SyntaxError{Message: msg, Value: t.description(), Offset: r.LastPos()}
-}
-
-// This is faster than creating a string to pass to strconv.Atoi.
-func parseIntFromBytes(chars []byte) (int64, bool) {
-	negate := false
-	p := 0
-	var ret int64
-	if len(chars) == 0 {
-		return 0, false
-	}
-	if chars[0] == '-' {
-		negate = true
-		p++
-		if p == len(chars) {
-			return 0, false
-		}
-	}
-	for p < len(chars) {
-		ret = ret*10 + int64(chars[p]-'0')
-		p++
-	}
-	if negate {
-		ret = -ret
-	}
-	return ret, true
 }
 
 func appendRune(out []byte, ch rune) []byte {

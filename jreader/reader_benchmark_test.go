@@ -35,7 +35,7 @@ func BenchmarkReadNumberIntNoAlloc(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r := NewReader(data)
-		val := r.Int()
+		val := r.Int64()
 		failBenchmarkOnReaderError(b, &r)
 		if val != 1234 {
 			b.FailNow()

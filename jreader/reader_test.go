@@ -91,7 +91,7 @@ func (f readerValueTestFactory) Variants(value commontest.AnyValue) []commontest
 	case commontest.NullValue:
 		return variantsForNullValues
 	case commontest.NumberValue:
-		if value.Number.Kind == NumberInt {
+		if value.Number.Kind == 1 {
 			return variantsForInts
 		}
 		return variantsForFloats
@@ -132,13 +132,13 @@ func (f readerValueTestFactory) Value(value commontest.AnyValue, variant commont
 		case commontest.NumberValue:
 			switch variant {
 			case nullableNumberAsInt:
-				gotVal, nonNull := r.IntOrNull()
+				gotVal, nonNull := r.Int64OrNull()
 				result, _ := strconv.ParseInt(string(value.Number.Value), 10, 64)
 				return commontest.AssertNoErrors(r.Error(),
 					commontest.AssertTrue(nonNull, shouldNotHaveBeenNullError.Error()),
 					commontest.AssertEqual(int(result), gotVal))
 			case numberAsInt:
-				gotVal := r.Int()
+				gotVal := r.Int64()
 				result, _ := strconv.ParseInt(string(value.Number.Value), 10, 64)
 				return commontest.AssertNoErrors(r.Error(),
 					commontest.AssertEqual(int(result), gotVal))
@@ -212,8 +212,8 @@ func assertReadNull(r *Reader, variant commontest.ValueVariant) error {
 		gotVal, nonNull = r.BoolOrNull()
 		expectVal = false
 	case nullableIntIsNull:
-		gotVal, nonNull = r.IntOrNull()
-		expectVal = 0
+		gotVal, nonNull = r.Int64OrNull()
+		expectVal = int64(0)
 	case nullableFloatIsNull:
 		gotVal, nonNull = r.Float64OrNull()
 		expectVal = float64(0)
@@ -294,8 +294,7 @@ func assertReadAnyValue(ctx *readerTestContext, r *Reader, value commontest.AnyV
 
 	case commontest.NumberValue:
 		return commontest.AssertNoErrors(commontest.AssertEqual(NumberValue, av.Kind),
-			commontest.AssertEqual(value.Number.Value, av.Number.Value),
-			commontest.AssertEqual(int(value.Number.Kind), int(av.Number.Kind)))
+			commontest.AssertEqual(value.Number.Value, av.Number.raw))
 
 	case commontest.StringValue:
 		return commontest.AssertNoErrors(commontest.AssertEqual(StringValue, av.Kind),
@@ -415,7 +414,7 @@ func TestReaderSkipValue(t *testing.T) {
 
 		require.True(t, obj.Next())
 		require.Equal(t, "a", string(obj.Name()))
-		val1 := r.Int()
+		val1 := r.Int64()
 		require.NoError(t, r.Error())
 		require.Equal(t, 1, val1)
 
@@ -423,7 +422,7 @@ func TestReaderSkipValue(t *testing.T) {
 
 		require.True(t, obj.Next())
 		require.Equal(t, "c", string(obj.Name()))
-		val3 := r.Int()
+		val3 := r.Int64()
 		require.NoError(t, r.Error())
 		require.Equal(t, 4, val3)
 

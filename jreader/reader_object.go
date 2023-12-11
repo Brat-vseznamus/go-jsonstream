@@ -29,9 +29,9 @@ import "fmt"
 //	for obj := r.ObjectOrNull(); obj.Next(); {
 //	    switch string(obj.Name()) {
 //	    case "a":
-//	        result.a = r.Int()
+//	        result.a = r.Int64()
 //	    case "b":
-//	        result.b = r.Int()
+//	        result.b = r.Int64()
 //	    }
 //	}
 //
