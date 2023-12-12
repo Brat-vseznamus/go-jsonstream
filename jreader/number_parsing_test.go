@@ -216,7 +216,7 @@ func TestParseCharactersToNumberProperties(t *testing.T) {
 
 func BaseTest(t *testing.T, s string, expectSame bool) {
 	mantissa, exp, neg, trunc, _, ok := runReader(s)
-	mantissa2, exp2, neg2, trunc2, _, _, ok2 := readFloat(s)
+	mantissa2, exp2, neg2, trunc2, _, _, ok2 := originalReadFloat(s)
 
 	fmt.Println(mantissa, exp, neg, trunc, ok)
 	fmt.Println(mantissa2, exp2, neg2, trunc2, ok2)
@@ -254,7 +254,7 @@ func runReader(s string) (mantissa uint64, exp int, neg, trunc bool, bs []byte, 
 }
 
 // original function
-func readFloat(s string) (mantissa uint64, exp int, neg, trunc, hex bool, i int, ok bool) {
+func originalReadFloat(s string) (mantissa uint64, exp int, neg, trunc, hex bool, i int, ok bool) {
 	underscores := false
 
 	// optional sign

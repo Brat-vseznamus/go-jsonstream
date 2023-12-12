@@ -1,6 +1,7 @@
 package jreader
 
 import (
+	"fmt"
 	"math"
 	"math/bits"
 	"strconv"
@@ -13,6 +14,56 @@ type NumberProps struct {
 	mantissa   uint64
 	exponent   int
 	raw        []byte
+}
+
+func (val NumberProps) UInt64() (uint64, error) {
+	if val.trunc {
+		result, err := strconv.ParseUint(string(val.raw), 10, 64)
+		return result, err
+	}
+	if val.isFloat {
+		return 0, fmt.Errorf("number is not a uint, because it is a float")
+	}
+	if val.isNegative {
+		return 0, fmt.Errorf("number is not a uint, because it is an int")
+	}
+	return val.mantissa, nil
+}
+
+func (val NumberProps) Int64() (int64, error) {
+	if val.trunc {
+		result, _ := strconv.ParseInt(string(val.raw), 10, 64)
+		return result, nil
+	}
+	//if r.tr.options.computeNumber {
+	if val.isFloat {
+		return 0, fmt.Errorf("number is not a int, because it is a float")
+	}
+	overflow := false
+	if val.isNegative {
+		overflow = val.mantissa > math.MaxInt64+1
+	} else {
+		overflow = val.mantissa > math.MaxInt64
+	}
+	if overflow {
+		return 0, fmt.Errorf("int under or over-flow")
+	}
+	if val.isNegative {
+		if val.mantissa == math.MaxInt64+1 {
+			return math.MinInt64, nil
+		}
+		return -int64(val.mantissa), nil
+	} else {
+		return int64(val.mantissa), nil
+	}
+}
+
+func (val NumberProps) Float64() (float64, error) {
+	f, _, err := readFloat(&val)
+	if err != nil {
+		return 0, err
+	}
+	return f, nil
 }
 
 const maxMantDigits = 19
@@ -180,7 +231,7 @@ func (r *tokenReader) readNumberProps(first byte, result *NumberProps) bool { //
 	return true
 }
 
-func (r *tokenReader) readFloat(props *NumberProps) (f float64, n int, err error) {
+func readFloat(props *NumberProps) (f float64, n int, err error) {
 	ok := true
 
 	// Try pure floating-point arithmetic conversion, and if that fails,

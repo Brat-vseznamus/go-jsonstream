@@ -2,7 +2,6 @@ package jreader
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 )
 
@@ -116,6 +115,37 @@ func (r *Reader) BoolOrNull() (value bool, nonNull bool) {
 	return val, true
 }
 
+func (r *Reader) NumberProps() *NumberProps {
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return nil
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = err
+		return nil
+	}
+	return val
+}
+
+func (r *Reader) NumberPropsOrNull() (*NumberProps, bool) {
+	r.awaitingReadValue = false
+	if r.err != nil {
+		return nil, false
+	}
+	isNull, err := r.tr.Null()
+	if isNull || err != nil {
+		r.err = err
+		return nil, false
+	}
+	val, err := r.tr.Number()
+	if err != nil {
+		r.err = typeErrorForNullableValue(err)
+		return nil, false
+	}
+	return val, true
+}
+
 func (r *Reader) Number() []byte {
 	r.awaitingReadValue = false
 	if r.err != nil {
@@ -157,24 +187,17 @@ func (r *Reader) UInt64() uint64 {
 		r.err = err
 		return 0
 	}
-	if val.trunc || r.IsNumbersRaw() {
+	if r.IsNumbersRaw() {
 		result, _ := strconv.ParseUint(string(val.raw), 10, 64)
 		return result
+	} else {
+		result, err := val.UInt64()
+		if err != nil {
+			r.err = err
+			return 0
+		}
+		return result
 	}
-	//if r.tr.options.computeNumber {
-	if val.isFloat {
-		r.err = fmt.Errorf("number is not a uint, because it is a float")
-		return 0
-	}
-	if val.isNegative {
-		r.err = fmt.Errorf("number is not a uint, because it is an int")
-		return 0
-	}
-	return val.mantissa
-	//} else {
-	//	result, _ := strconv.ParseUint(string(val.raw), 10, 64)
-	//	return result
-	//}
 }
 
 func (r *Reader) UInt64OrNull() (uint64, bool) {
@@ -192,24 +215,17 @@ func (r *Reader) UInt64OrNull() (uint64, bool) {
 		r.err = typeErrorForNullableValue(err)
 		return 0, false
 	}
-	if val.trunc || r.IsNumbersRaw() {
+	if r.IsNumbersRaw() {
 		result, err := strconv.ParseUint(string(val.raw), 10, 64)
 		return result, err == nil
+	} else {
+		result, err := val.UInt64()
+		if err != nil {
+			r.err = err
+			return 0, false
+		}
+		return result, true
 	}
-	//if r.tr.options.computeNumber {
-	if val.isFloat {
-		r.err = fmt.Errorf("number is not a uint, because it is a float")
-		return 0, false
-	}
-	if val.isNegative {
-		r.err = fmt.Errorf("number is not a uint, because it is an int")
-		return 0, false
-	}
-	return val.mantissa, true
-	//} else {
-	//	result, err := strconv.ParseUint(string(val.raw), 10, 64)
-	//	return result, err == nil
-	//}
 }
 
 // Int64 attempts to read a numeric value and returns it as an int.
@@ -227,37 +243,17 @@ func (r *Reader) Int64() int64 {
 		r.err = err
 		return 0
 	}
-	if val.trunc || r.IsNumbersRaw() {
+	if r.IsNumbersRaw() {
 		result, _ := strconv.ParseInt(string(val.raw), 10, 64)
 		return result
-	}
-	//if r.tr.options.computeNumber {
-	if val.isFloat {
-		r.err = fmt.Errorf("number is not a int, because it is a float")
-		return 0
-	}
-	overflow := false
-	if val.isNegative {
-		overflow = val.mantissa > math.MaxInt64+1
 	} else {
-		overflow = val.mantissa > math.MaxInt64
-	}
-	if overflow {
-		r.err = fmt.Errorf("int under or over-flow")
-		return 0
-	}
-	if val.isNegative {
-		if val.mantissa == math.MaxInt64+1 {
-			return math.MinInt64
+		result, err := val.Int64()
+		if err != nil {
+			r.err = err
+			return 0
 		}
-		return -int64(val.mantissa)
-	} else {
-		return int64(val.mantissa)
+		return result
 	}
-	//} else {
-	//	result, _ := strconv.ParseInt(string(val.raw), 10, 64)
-	//	return result
-	//}
 }
 
 // Int64OrNull attempts to read either an integer numeric value or a null. In the case of a number, the
@@ -280,34 +276,17 @@ func (r *Reader) Int64OrNull() (int64, bool) {
 		r.err = typeErrorForNullableValue(err)
 		return 0, false
 	}
-	if val.trunc || r.IsNumbersRaw() {
+	if r.IsNumbersRaw() {
 		result, err := strconv.ParseInt(string(val.raw), 10, 64)
 		return result, err == nil
-	}
-	//if r.tr.options.computeNumber {
-	if val.isFloat {
-		r.err = fmt.Errorf("number is not a int, because it is a float")
-		return 0, false
-	}
-	overflow := false
-	if val.isNegative {
-		overflow = val.mantissa > math.MaxInt64+1
 	} else {
-		overflow = val.mantissa > math.MaxInt64
+		result, err := val.Int64()
+		if err != nil {
+			r.err = err
+			return 0, false
+		}
+		return result, true
 	}
-	if overflow {
-		r.err = fmt.Errorf("int under or over-flow")
-		return 0, false
-	}
-	if val.isNegative {
-		return -int64(val.mantissa), true
-	} else {
-		return int64(val.mantissa), true
-	}
-	//} else {
-	//	result, err := strconv.ParseInt(string(val.raw), 10, 64)
-	//	return result, err == nil
-	//}
 }
 
 // Float64 attempts to read a numeric value and returns it as a float64.
@@ -328,13 +307,14 @@ func (r *Reader) Float64() float64 {
 	if r.IsNumbersRaw() {
 		result, _ := strconv.ParseFloat(string(val.raw), 64)
 		return result
+	} else {
+		result, err := val.Float64()
+		if err != nil {
+			r.err = err
+			return 0
+		}
+		return result
 	}
-	f, _, err := r.tr.readFloat(val)
-	if err != nil {
-		r.err = err
-		return 0
-	}
-	return f
 }
 
 // Float64OrNull attempts to read either a numeric value or a null. In the case of a number, the
@@ -360,18 +340,14 @@ func (r *Reader) Float64OrNull() (float64, bool) {
 	if r.IsNumbersRaw() {
 		result, err := strconv.ParseFloat(string(val.raw), 64)
 		return result, err == nil
+	} else {
+		result, err := val.Float64()
+		if err != nil {
+			r.err = err
+			return 0, false
+		}
+		return result, true
 	}
-	//if r.tr.options.computeNumber {
-	f, _, err := r.tr.readFloat(val)
-	if err != nil {
-		r.err = err
-		return 0, false
-	}
-	return f, true
-	//} else {
-	//	result, err := strconv.ParseFloat(string(val.raw), 64)
-	//	return result, err == nil
-	//}
 }
 
 // String attempts to read a string value.
