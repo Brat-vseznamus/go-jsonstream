@@ -590,6 +590,9 @@ func (r *Reader) IsNumbersRaw() bool {
 }
 
 func (r *Reader) SyncWithPreProcess() {
+	if r.tr.structBuffer.Values == nil {
+		return
+	}
 	if r.tr.options.lazyRead {
 		r.tr.options.lazyRead = false
 		bufferSize := len(*r.tr.structBuffer.Values)
@@ -601,6 +604,9 @@ func (r *Reader) SyncWithPreProcess() {
 }
 
 func (r *Reader) PreProcess() {
+	if r.tr.structBuffer.Values == nil || r.tr.charBuffer == nil {
+		return
+	}
 	r.tr.options.lazyParse = true
 	r.tr.options.lazyRead = false
 	cr := *r
@@ -647,14 +653,18 @@ func (r *Reader) preProcess() {
 			nextPos := len(*tree)
 			key := kv.Name()
 			r.preProcess()
-			(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
-			(*tree)[nextPos].AssocValue = key
+			if len(*tree) > nextPos {
+				(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
+				(*tree)[nextPos].AssocValue = key
+			}
 		}
 	case ArrayValue:
 		for v := value.Array; v.Next(); {
 			nextPos := len(*tree)
 			r.preProcess()
-			(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
+			if len(*tree) > nextPos {
+				(*tree)[pos].SubTreeSize += (*tree)[nextPos].SubTreeSize
+			}
 		}
 	}
 	(*tree)[pos].End = r.tr.pos

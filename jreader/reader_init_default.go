@@ -1,5 +1,7 @@
 package jreader
 
+import "fmt"
+
 // NewReader creates a Reader that consumes the specified JSON input data.
 //
 // This function returns the struct by value (Reader, not *Reader). This avoids the overhead of a
@@ -15,7 +17,7 @@ func NewReader(data []byte) Reader {
 }
 
 func NewReaderWithBuffers(data []byte, bufferConfig BufferConfig) Reader {
-	return Reader{
+	r := Reader{
 		tr: newTokenReader(
 			data,
 			bufferConfig.StructBuffer,
@@ -23,6 +25,10 @@ func NewReaderWithBuffers(data []byte, bufferConfig BufferConfig) Reader {
 			bufferConfig.ComputedValuesBuffer,
 		),
 	}
+	if bufferConfig.CharsBuffer == nil {
+		r.err = fmt.Errorf("char buffer must be initilized")
+	}
+	return r
 }
 
 type BufferConfig struct {

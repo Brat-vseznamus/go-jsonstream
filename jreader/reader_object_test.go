@@ -2,9 +2,8 @@ package jreader
 
 import (
 	"errors"
-	"testing"
-
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 func TestAddErrorStopsObjectParsing(t *testing.T) {
