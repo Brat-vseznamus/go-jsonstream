@@ -8,6 +8,49 @@ import (
 	"testing"
 )
 
+func TestRawNumberReading(t *testing.T) {
+	type testDef struct {
+		prefix string
+		suffix string
+		input  string
+	}
+
+	tests := []testDef{
+		{input: "0123456789eE+-."},
+		{input: "0123456789eE+-.", prefix: "   ", suffix: "    "},
+		{input: "0123456789eE+-.", prefix: "   ", suffix: ",    "},
+		{input: "0123456789eE+-.", prefix: "   ", suffix: "  }  "},
+		{input: "+11010101010", prefix: "   ", suffix: " ]   "},
+	}
+
+	structBuffer := make([]JsonTreeStruct, 0)
+	charBuffer := make([]byte, 0)
+	buffer := make([]NumberProps, 0)
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("Test[\"%s\"]", test.input), func(st *testing.T) {
+			r := NewReaderWithBuffers(
+				[]byte(test.prefix+test.input+test.suffix),
+				BufferConfig{
+					&structBuffer,
+					&charBuffer,
+					JsonComputedValues{
+						NumberValues: &buffer,
+					},
+				},
+			)
+			r.PreProcess()
+			result := r.Number()
+			ok := r.Error() == nil
+			if ok {
+				assert.Equal(st, string(result), test.input)
+			} else {
+				st.Fail()
+			}
+		})
+	}
+}
+
 func TestInt64WithComputeWithBuffers(t *testing.T) {
 	type testDef struct {
 		input   string
@@ -44,6 +87,7 @@ func TestInt64WithComputeWithBuffers(t *testing.T) {
 					},
 				},
 			)
+			r.SetNumberRawRead(false)
 			r.PreProcess()
 			result, ok := r.Int64OrNull()
 			if test.success {
@@ -78,6 +122,7 @@ func TestInt64WithComputeWithoutBuffers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("Parse int64 (input: %s)", test.input), func(st *testing.T) {
 			r := NewReader([]byte(test.input))
+			r.SetNumberRawRead(false)
 			r.PreProcess()
 			result, ok := r.Int64OrNull()
 			if test.success {
@@ -111,6 +156,7 @@ func TestUInt64WithComputeWithoutBuffers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("Parse int64 (input: %s)", test.input), func(st *testing.T) {
 			r := NewReader([]byte(test.input))
+			r.SetNumberRawRead(false)
 			result, ok := r.UInt64OrNull()
 			if test.success {
 				assert.Equal(st, result, test.result)

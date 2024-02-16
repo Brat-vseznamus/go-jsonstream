@@ -62,11 +62,12 @@ func (t token) description() string {
 }
 
 type readerOptions struct {
-	lazyParse     bool
-	lazyRead      bool
-	computeString bool
-	computeNumber bool // TODO
-	readKey       bool
+	lazyParse      bool
+	lazyRead       bool
+	computeString  bool
+	computeNumber  bool // TODO
+	readKey        bool
+	readRawNumbers bool
 }
 
 type tokenReader struct {

@@ -82,153 +82,179 @@ func (r *tokenReader) readNumberProps(first byte, result *NumberProps) bool { //
 
 	*result = NumberProps{}
 
-	// minus
-	if ch == '-' {
-		result.isNegative = true
-		ch, success = r.readByte()
-		if !success {
+	if r.options.readRawNumbers {
+		// basic version which must be strconv parsed
+		switch ch {
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-':
+			{
+			}
+		default:
 			return false
 		}
-	}
-
-	isZero := false
-
-	nd := 0
-	ndMant := 0
-	dp := 0
-
-	// first digit
-	if isDigit(ch) {
-		if ch == '0' {
-			isZero = true
+		for ch, success = r.readByte(); success; ch, success = r.readByte() {
+			switch ch {
+			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', 'e', 'E', '+', '-':
+				continue
+			}
+			break
+		}
+		result.trunc = true
+		if r.pos == len(r.data) {
+			result.raw = r.data[startPos:r.pos]
+		} else {
+			r.unreadByte()
+			result.raw = r.data[startPos:r.pos]
+		}
+		return true
+	} else {
+		// minus
+		if ch == '-' {
+			result.isNegative = true
 			ch, success = r.readByte()
-			if isDigit(ch) {
+			if !success {
 				return false
-			} else if success {
+			}
+		}
+
+		isZero := false
+
+		nd := 0
+		ndMant := 0
+		dp := 0
+
+		// first digit
+		if isDigit(ch) {
+			if ch == '0' {
+				isZero = true
+				ch, success = r.readByte()
+				if isDigit(ch) {
+					return false
+				} else if success {
+					r.unreadByte()
+				}
+			} else {
 				r.unreadByte()
 			}
 		} else {
+			return false
+		}
+
+		if !isZero {
+			for {
+				ch, success = r.readByte()
+				if !success {
+					break
+				}
+				if isDigit(ch) {
+					nd++
+					if ndMant < maxMantDigits {
+						result.mantissa = 10*result.mantissa + uint64(ch-'0')
+						ndMant++
+					} else if ch != '0' {
+						result.trunc = true
+					}
+				} else {
+					r.unreadByte()
+					break
+				}
+			}
+		}
+
+		ch, success = r.readByte()
+		sawdot := false
+
+		if success && ch == '.' {
+			sawdot = true
+			dp = nd
+			result.isFloat = true
+
+			ch, success = r.readByte()
+			// next symbol must be digit
+			if !success || !isDigit(ch) {
+				return false
+			}
 			r.unreadByte()
-		}
-	} else {
-		return false
-	}
-
-	if !isZero {
-		for {
-			ch, success = r.readByte()
-			if !success {
-				break
-			}
-			if isDigit(ch) {
-				nd++
-				if ndMant < maxMantDigits {
-					result.mantissa = 10*result.mantissa + uint64(ch-'0')
-					ndMant++
-				} else if ch != '0' {
-					result.trunc = true
+			for {
+				ch, success = r.readByte()
+				if !success {
+					break
 				}
-			} else {
-				r.unreadByte()
-				break
-			}
-		}
-	}
-
-	ch, success = r.readByte()
-	sawdot := false
-
-	if success && ch == '.' {
-		sawdot = true
-		dp = nd
-		result.isFloat = true
-
-		ch, success = r.readByte()
-		// next symbol must be digit
-		if !success || !isDigit(ch) {
-			return false
-		}
-		r.unreadByte()
-		for {
-			ch, success = r.readByte()
-			if !success {
-				break
-			}
-			if isDigit(ch) {
-				if ch == '0' && nd == 0 { // ignore leading zeros
-					dp--
-					continue
+				if isDigit(ch) {
+					if ch == '0' && nd == 0 { // ignore leading zeros
+						dp--
+						continue
+					}
+					nd++
+					if ndMant < maxMantDigits {
+						result.mantissa = 10*result.mantissa + uint64(ch-'0')
+						ndMant++
+					} else if ch != '0' {
+						result.trunc = true
+					}
+				} else {
+					break
 				}
-				nd++
-				if ndMant < maxMantDigits {
-					result.mantissa = 10*result.mantissa + uint64(ch-'0')
-					ndMant++
-				} else if ch != '0' {
-					result.trunc = true
-				}
-			} else {
-				break
 			}
 		}
-	}
 
-	if !sawdot {
-		dp = nd
-	}
-
-	if success && (ch == 'e' || ch == 'E') {
-		isExpNegative := false
-		expPart := 0
-
-		result.isFloat = true
-		ch, success = r.readByte()
-		if !success {
-			return false
+		if !sawdot {
+			dp = nd
 		}
-		if isSign(ch) {
-			if ch == '-' {
-				isExpNegative = true
-			}
+
+		if success && (ch == 'e' || ch == 'E') {
+			isExpNegative := false
+			expPart := 0
+
+			result.isFloat = true
 			ch, success = r.readByte()
 			if !success {
 				return false
 			}
-		}
-		if isDigit(ch) {
-			expPart = int(ch - '0')
-		}
-		for {
-			ch, success = r.readByte()
-			if !success {
-				break
+			if isSign(ch) {
+				if ch == '-' {
+					isExpNegative = true
+				}
+				ch, success = r.readByte()
+				if !success {
+					return false
+				}
 			}
 			if isDigit(ch) {
-				if expPart < 10000 {
-					expPart = 10*expPart + int(ch-'0')
-				}
-			} else {
-				break
+				expPart = int(ch - '0')
 			}
+			for {
+				ch, success = r.readByte()
+				if !success {
+					break
+				}
+				if isDigit(ch) {
+					if expPart < 10000 {
+						expPart = 10*expPart + int(ch-'0')
+					}
+				} else {
+					break
+				}
+			}
+			if isExpNegative {
+				expPart = -expPart
+			}
+			dp += expPart
 		}
-		if isExpNegative {
-			expPart = -expPart
+
+		if result.mantissa != 0 {
+			result.exponent = dp - ndMant
 		}
-		dp += expPart
-	}
 
-	if result.mantissa != 0 {
-		result.exponent = dp - ndMant
-	}
+		// endPos := r.pos
+		if r.pos == len(r.data) {
+			result.raw = r.data[startPos:r.pos]
+		} else {
+			r.unreadByte()
+			result.raw = r.data[startPos:r.pos]
+		}
 
-	// endPos := r.pos
-	if r.pos == len(r.data) {
-		result.raw = r.data[startPos:r.pos]
-	} else {
-		r.unreadByte()
-		result.raw = r.data[startPos:r.pos]
+		return true
 	}
-
-	return true
 }
 
 func readFloat(props *NumberProps) (f float64, n int, err error) {

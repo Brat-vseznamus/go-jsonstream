@@ -581,6 +581,10 @@ func (r *Reader) SkipValue() error {
 	}
 }
 
+func (r *Reader) SetNumberRawRead(readRaw bool) {
+	r.tr.options.readRawNumbers = readRaw
+}
+
 func (r *Reader) IsPreProcessed() bool {
 	return r.tr.options.lazyRead && r.tr.structBuffer.HasNext()
 }

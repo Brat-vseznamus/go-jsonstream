@@ -10,10 +10,14 @@ import "fmt"
 func NewReader(data []byte) Reader {
 	buffer := make([]JsonTreeStruct, 0)
 	charBuffer := make([]byte, 0)
-	computedValuesBuffer := JsonComputedValues{}
-	return Reader{
-		tr: newTokenReader(data, &buffer, &charBuffer, computedValuesBuffer),
-	}
+	return NewReaderWithBuffers(
+		data,
+		BufferConfig{
+			StructBuffer:         &buffer,
+			CharsBuffer:          &charBuffer,
+			ComputedValuesBuffer: JsonComputedValues{},
+		},
+	)
 }
 
 func NewReaderWithBuffers(data []byte, bufferConfig BufferConfig) Reader {
@@ -25,6 +29,8 @@ func NewReaderWithBuffers(data []byte, bufferConfig BufferConfig) Reader {
 			bufferConfig.ComputedValuesBuffer,
 		),
 	}
+	// temporary solution
+	r.tr.options.readRawNumbers = true
 	if bufferConfig.CharsBuffer == nil {
 		r.err = fmt.Errorf("char buffer must be initilized")
 	}
