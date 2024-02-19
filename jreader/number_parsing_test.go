@@ -20,7 +20,10 @@ func TestRawNumberReading(t *testing.T) {
 		{input: "0123456789eE+-.", prefix: "   ", suffix: "    "},
 		{input: "0123456789eE+-.", prefix: "   ", suffix: ",    "},
 		{input: "0123456789eE+-.", prefix: "   ", suffix: "  }  "},
-		{input: "+11010101010", prefix: "   ", suffix: " ]   "},
+		{input: "-11010101010", prefix: "   ", suffix: " ]   "},
+		{input: "2", prefix: " ", suffix: "}"},
+		{input: "2", prefix: " ", suffix: ""},
+		{input: "2e4", prefix: " ", suffix: ","},
 	}
 
 	structBuffer := make([]JsonTreeStruct, 0)

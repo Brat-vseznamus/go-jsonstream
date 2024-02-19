@@ -96,15 +96,11 @@ func (r *tokenReader) readNumberProps(first byte, result *NumberProps) bool { //
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', 'e', 'E', '+', '-':
 				continue
 			}
+			r.unreadByte()
 			break
 		}
 		result.trunc = true
-		if r.pos == len(r.data) {
-			result.raw = r.data[startPos:r.pos]
-		} else {
-			r.unreadByte()
-			result.raw = r.data[startPos:r.pos]
-		}
+		result.raw = r.data[startPos:r.pos]
 		return true
 	} else {
 		// minus

@@ -166,7 +166,7 @@ func (r *tokenReader) Bool() (bool, error) {
 	return t.boolValue, err
 }
 
-// Bool requires that the next token is a JSON number, returning its Value if successful (consuming
+// Number requires that the next token is a JSON number, returning its Value if successful (consuming
 // the token), or an error if the next token is anything other than a JSON number.
 //
 // This and all other tokenReader methods skip transparently past whitespace between tokens.
