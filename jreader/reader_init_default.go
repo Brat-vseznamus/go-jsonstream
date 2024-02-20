@@ -29,8 +29,6 @@ func NewReaderWithBuffers(data []byte, bufferConfig BufferConfig) Reader {
 			bufferConfig.ComputedValuesBuffer,
 		),
 	}
-	// temporary solution
-	r.tr.options.readRawNumbers = true
 	if bufferConfig.CharsBuffer == nil {
 		r.err = fmt.Errorf("char buffer must be initilized")
 	}

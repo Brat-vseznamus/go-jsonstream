@@ -87,23 +87,41 @@ type tokenReader struct {
 
 func newTokenReader(data []byte, buffer *[]JsonTreeStruct, charBuffer *[]byte, computedValuesBuffer JsonComputedValues) tokenReader {
 	tr := tokenReader{
-		data: data,
-		pos:  0,
-		len:  len(data),
 		structBuffer: JsonStructPointer{
-			Pos:    0,
 			Values: buffer,
 		},
 		charBuffer:           charBuffer,
 		computedValuesBuffer: computedValuesBuffer,
 	}
-	if computedValuesBuffer.StringValues != nil {
-		tr.options.computeString = true
-	}
-	if computedValuesBuffer.NumberValues != nil {
-		tr.options.computeNumber = true
-	}
+	tr.Reset(data)
 	return tr
+}
+
+func (r *tokenReader) Reset(data []byte) {
+	r.data = data
+	r.len = len(data)
+	r.pos = 0
+	r.hasUnread = false
+
+	if r.charBuffer != nil {
+		*r.charBuffer = (*r.charBuffer)[:0]
+	}
+	r.structBuffer.Pos = 0
+	if r.structBuffer.Values != nil {
+		*r.structBuffer.Values = (*r.structBuffer.Values)[:0]
+	}
+	r.options.computeString = r.computedValuesBuffer.StringValues != nil
+	if r.options.computeString {
+		*r.computedValuesBuffer.StringValues = (*r.computedValuesBuffer.StringValues)[:0]
+	}
+	r.options.computeNumber = r.computedValuesBuffer.NumberValues != nil
+	if r.options.computeNumber {
+		*r.computedValuesBuffer.NumberValues = (*r.computedValuesBuffer.NumberValues)[:0]
+	}
+	r.options.readKey = false
+	r.options.lazyParse = false
+	r.options.lazyRead = false
+	r.options.readRawNumbers = true
 }
 
 // EOF returns true if we are at the end of the input (not counting whitespace).

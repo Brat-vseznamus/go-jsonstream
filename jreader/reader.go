@@ -30,6 +30,13 @@ type Reader struct {
 	err               error
 }
 
+// Reset drops all states and reset all buffers to nils
+func (r *Reader) Reset(data []byte) {
+	r.err = nil
+	r.awaitingReadValue = false
+	r.tr.Reset(data)
+}
+
 // Error returns the first error that the Reader encountered, if the Reader is in a failed state,
 // or nil if it is still in a good state.
 func (r *Reader) Error() error {
