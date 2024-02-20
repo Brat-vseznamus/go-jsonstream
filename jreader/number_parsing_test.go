@@ -208,6 +208,7 @@ func TestFloat64WithComputeWithoutBuffers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("Parse int64 (input: %s)", test.input), func(st *testing.T) {
 			r := NewReader([]byte(test.input))
+			r.SetNumberRawRead(false)
 			result, ok := r.Float64OrNull()
 			if !test.worksDifferent {
 				trimmedValue := strings.TrimSpace(test.input)
@@ -291,6 +292,7 @@ func runReader(s string) (mantissa uint64, exp int, neg, trunc bool, bs []byte, 
 			nil,
 		},
 	)
+	r.options.readRawNumbers = false
 	ch, _ := r.readByte()
 	var result NumberProps
 	ok = r.readNumberProps(ch, &result)
